@@ -1,0 +1,29 @@
+plugins {
+    id 'java'
+}
+
+group = 'GravelDB'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    implementation 'io.projectreactor:reactor-core:3.5.0'
+    implementation 'io.netty:netty-all:4.1.97.Final'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.1.0-alpha1'
+    testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.5.16'
+    implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.5.16'
+    implementation group: 'ch.qos.logback', name: 'logback-core', version: '1.5.16'
+
+}
+
+test {
+    useJUnitPlatform()
+}
