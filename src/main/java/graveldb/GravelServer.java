@@ -1,5 +1,8 @@
 package graveldb;
 
+import graveldb.DataStore.KeyValueStore;
+import graveldb.DataStore.LSMTree;
+import graveldb.WAL.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -13,15 +16,15 @@ import java.util.List;
 
 public class GravelServer {
     private final int port;
-    private final InMemoryKeyValueStore store;
+    private final KeyValueStore store;
     private final WriteAheadLog wal;
     private static final Logger logger = LoggerFactory.getLogger(GravelServer.class);
     private static final String WAL_FILE = "./wal.txt";
 
     public GravelServer(int port) throws IOException {
         this.port = port;
-        this.store = new InMemoryKeyValueStore();
         this.wal = new WriteAheadLog(WAL_FILE);
+        this.store = new LSMTree(this.wal);
     }
 
     public void start() throws InterruptedException {
@@ -42,7 +45,7 @@ public class GravelServer {
             try {
                 recover();
             } catch (Exception e) {
-                logger.error("WAL Recovery Failed.");
+                logger.error("WAL Recovery Failed.",e);
                 throw new InterruptedException("WAL Recovery Failed.");
             }
 

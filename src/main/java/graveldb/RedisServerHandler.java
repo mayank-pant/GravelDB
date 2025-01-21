@@ -1,5 +1,10 @@
 package graveldb;
 
+import graveldb.DataStore.KeyValueStore;
+import graveldb.Lexer.Lexer;
+import graveldb.Parser.Command;
+import graveldb.Parser.Parser;
+import graveldb.WAL.WriteAheadLog;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.buffer.ByteBuf;
@@ -10,12 +15,12 @@ import java.util.List;
 
 public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
-    private final InMemoryKeyValueStore store;
+    private final KeyValueStore store;
     private final WriteAheadLog wal;
     private final Lexer lexer = new Lexer();
     private final Parser parser = new Parser();
 
-    public RedisServerHandler(InMemoryKeyValueStore store, WriteAheadLog wal) {
+    public RedisServerHandler(KeyValueStore store, WriteAheadLog wal) {
         this.store = store;
         this. wal = wal;
     }

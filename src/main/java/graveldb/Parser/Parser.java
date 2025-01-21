@@ -1,9 +1,10 @@
-package graveldb;
+package graveldb.Parser;
 
 import java.util.List;
 
 public class Parser {
 
+    // TODO : Enumify the Command token
     public Command parse(List<String> tokens) throws IllegalArgumentException {
         if (tokens.isEmpty()) {
             throw new IllegalArgumentException("Invalid command: No tokens found");

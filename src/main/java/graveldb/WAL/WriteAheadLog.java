@@ -1,4 +1,4 @@
-package graveldb;
+package graveldb.WAL;
 
 import java.io.*;
 import java.nio.file.*;
@@ -16,6 +16,7 @@ public class WriteAheadLog {
     }
 
     // Append an operation to the log
+    // TODO : Optimize for performance by batching WAL writes or using asynchronous processing.
     public synchronized void append(String operation, String key, String value) throws IOException {
         try (FileWriter writer = new FileWriter(walFile.toFile(), true)) {
             String entry = operation + " " + key + (value != null ? " " + value : "") + "\n";

@@ -1,2 +1,2 @@
 # GravelDB
-Key value, In memeory, WAL enabled database
+Key value, In memory, WAL enabled database
