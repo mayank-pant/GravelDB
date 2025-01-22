@@ -1,4 +1,4 @@
-package graveldb.Parser;
+package graveldb.parser;
 
 import java.util.List;
 

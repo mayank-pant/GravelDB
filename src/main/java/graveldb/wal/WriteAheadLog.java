@@ -1,4 +1,4 @@
-package graveldb.WAL;
+package graveldb.wal;
 
 import java.io.*;
 import java.nio.file.*;

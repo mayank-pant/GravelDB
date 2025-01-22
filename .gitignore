@@ -17,6 +17,7 @@ graveldb-client.py
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+*ssfile.data
 
 ### Eclipse ###
 .apt_generated

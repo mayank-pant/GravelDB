@@ -1,4 +1,4 @@
-package graveldb.datastore.LSMTree.Memtable;
+package graveldb.datastore.lsmtree.memtable;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;

@@ -1,4 +1,4 @@
-package graveldb.datastore.LSMTree.SSTable;
+package graveldb.datastore.lsmtree.sstable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,7 @@ public class SSTableIO implements SSTable {
 
                     if (key.equals(targetKey) && valueLength != 0) {
                         return value;
-                    } else {
+                    } else if (key.equals(targetKey)) {
                         return null;
                     }
                 }

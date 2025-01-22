@@ -1,11 +1,11 @@
-package graveldb.datastore.LSMTree;
+package graveldb.datastore.lsmtree;
 
 import graveldb.datastore.*;
-import graveldb.datastore.LSMTree.Memtable.ConcurrentSkipListMemtable;
-import graveldb.datastore.LSMTree.Memtable.Memtable;
-import graveldb.WAL.WriteAheadLog;
-import graveldb.datastore.LSMTree.SSTable.SSTable;
-import graveldb.datastore.LSMTree.SSTable.SSTableIO;
+import graveldb.datastore.lsmtree.memtable.ConcurrentSkipListMemtable;
+import graveldb.datastore.lsmtree.memtable.Memtable;
+import graveldb.wal.WriteAheadLog;
+import graveldb.datastore.lsmtree.sstable.SSTable;
+import graveldb.datastore.lsmtree.sstable.SSTableIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

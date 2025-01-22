@@ -1,8 +1,8 @@
 package graveldb;
 
 import graveldb.datastore.KeyValueStore;
-import graveldb.datastore.LSMTree.LSMTree;
-import graveldb.WAL.WriteAheadLog;
+import graveldb.datastore.lsmtree.LSMTree;
+import graveldb.wal.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;

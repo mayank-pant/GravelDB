@@ -1,4 +1,4 @@
-package graveldb.datastore.LSMTree.Memtable;
+package graveldb.datastore.lsmtree.memtable;
 
 public enum MemtableStatus {
     ACTIVE,

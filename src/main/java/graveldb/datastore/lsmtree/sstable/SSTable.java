@@ -1,4 +1,4 @@
-package graveldb.datastore.LSMTree.SSTable;
+package graveldb.datastore.lsmtree.sstable;
 
 public interface SSTable {
 

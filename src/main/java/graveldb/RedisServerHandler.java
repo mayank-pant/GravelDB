@@ -1,10 +1,10 @@
 package graveldb;
 
 import graveldb.datastore.KeyValueStore;
-import graveldb.Lexer.Lexer;
-import graveldb.Parser.Command;
-import graveldb.Parser.Parser;
-import graveldb.WAL.WriteAheadLog;
+import graveldb.lexer.Lexer;
+import graveldb.parser.Command;
+import graveldb.parser.Parser;
+import graveldb.wal.WriteAheadLog;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.buffer.ByteBuf;
