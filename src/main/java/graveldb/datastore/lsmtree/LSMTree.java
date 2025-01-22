@@ -13,6 +13,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class LSMTree implements KeyValueStore {
 
@@ -22,8 +23,9 @@ public class LSMTree implements KeyValueStore {
     private final SSTable ssTable;
     private final WriteAheadLog writeAheadLog;
     private static final String FILE_POSTFIX = "ssfile.data";
+    private static final String DATA_DIR = "./dbdata";
 
-    public LSMTree(WriteAheadLog wal) {
+    public LSMTree(WriteAheadLog wal) throws IOException {
         this.writeAheadLog = wal;
         this.ssTable = new SSTableIO();
         this.mutMemtable = new ConcurrentSkipListMemtable();
@@ -46,7 +48,7 @@ public class LSMTree implements KeyValueStore {
 
     public void flushMemtable(Memtable memtable) {
         try {
-            String filePath = memtable.hashCode() +
+            String filePath = DATA_DIR + "/" + memtable.hashCode() +
                     "_" +
                     FILE_POSTFIX;
 
@@ -64,7 +66,7 @@ public class LSMTree implements KeyValueStore {
                     byte[] valueBytes = new byte[]{0};
                     int valueLen = 0;
                     capacity += 4;
-                    if (value != null) {
+                    if (!Objects.equals(value, "")) {
                         valueBytes = value.getBytes();
                         capacity += valueBytes.length;
                         valueLen = valueBytes.length;
@@ -97,13 +99,13 @@ public class LSMTree implements KeyValueStore {
 
     public String get(String key) {
         String value = mutMemtable.get(key);
-        if (value != null) return value;
-
-        return ssTable.get(key);
+        if (value == null) return ssTable.get(key);
+        else if (value.isEmpty()) return null;
+        else return value;
 
     }
 
-    public void delete(String key) throws IOException { mutMemtable.put(key, null); }
+    public void delete(String key) throws IOException { mutMemtable.put(key, ""); }
 
     public int size() {
         return 1;
