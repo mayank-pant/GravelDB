@@ -1,7 +1,7 @@
 package graveldb;
 
-import graveldb.DataStore.KeyValueStore;
-import graveldb.DataStore.LSMTree;
+import graveldb.datastore.KeyValueStore;
+import graveldb.datastore.LSMTree.LSMTree;
 import graveldb.WAL.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;

@@ -1,6 +1,6 @@
 package graveldb;
 
-import graveldb.DataStore.KeyValueStore;
+import graveldb.datastore.KeyValueStore;
 import graveldb.Lexer.Lexer;
 import graveldb.Parser.Command;
 import graveldb.Parser.Parser;
@@ -62,8 +62,8 @@ public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
                     return value == null ? "$-1\r\n" : "$" + value.length() + "\r\n" + value + "\r\n";
                 case "DEL":
                     wal.append("DEL", command.key(), null);
-                    String deleted = store.delete(command.key());
-                    return ":" + deleted + "\r\n";
+                    store.delete(command.key());
+                    return ":OK\r\n";
                 case "DBSIZE":
                     return ":" + store.size() + "\r\n";
                 case "GETALL":
