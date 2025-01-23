@@ -87,6 +87,7 @@ public class LSMTree implements KeyValueStore {
             }
 
             ssTable.addSSTable(filePath);
+            ssTable.compaction();
             writeAheadLog.clear();
         } catch (Exception e) {
             logger.error("error while converting memtable to sstable",e);

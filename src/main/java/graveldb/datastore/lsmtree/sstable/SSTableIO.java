@@ -17,6 +17,7 @@ public class SSTableIO implements SSTable {
     private static final Logger log = LoggerFactory.getLogger(SSTableIO.class);
     private final LinkedList<String> ssTableList;
     private static final String DATA_DIR = "./dbdata";
+    private static final String FILE_POSTFIX = "ssfile.data";
 
     public SSTableIO() throws IOException {
         this.ssTableList = new LinkedList<>();
@@ -43,6 +44,141 @@ public class SSTableIO implements SSTable {
 
     @Override
     public void addSSTable(String filePath) { ssTableList.addFirst(filePath); }
+
+    @Override
+    public void compaction() throws IOException {
+
+        // ss table size should atleast be 2 to proceed
+        if (ssTableList.size() < 2) return;
+
+        // generate new output file
+        String outputFileName = DATA_DIR+"/"+ssTableList.get(0).hashCode()+ssTableList.get(1)+"_"+FILE_POSTFIX;
+        File outputFile = Files.createFile(Path.of(outputFileName)).toFile();
+
+        // open input and output streams
+        InputStream fis1 = new BufferedInputStream(new FileInputStream(ssTableList.get(0)));
+        InputStream fis2 = new BufferedInputStream(new FileInputStream(ssTableList.get(1)));
+        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(outputFile));
+
+        // initialize variables to store values
+        byte[] keyLenBytes1 = new byte[4];
+        byte[] valLenBytes1 = new byte[4];
+        int keyLen1 = 0;
+        int valLen1 = 0;
+        byte[] keyByte1 = new byte[0];
+        byte[] valByte1 = new byte[0];
+        String key1 = "";
+
+        byte[] keyLenBytes2 = new byte[4];
+        byte[] valLenBytes2 = new byte[4];
+        int keyLen2 = 0;
+        int valLen2 = 0;
+        byte[] keyByte2 = new byte[0];
+        byte[] valByte2 = new byte[0];
+        String key2 = "";
+
+        // try with resource
+        try (fis1; fis2; bos) {
+            while (true) {
+                // if not keys are read yet then go inside the block
+                if (Arrays.equals(keyLenBytes1, new byte[4]) && Arrays.equals(keyLenBytes2, new byte[4])) {
+                    // if any of the key reads from file are empty then go out of loop
+                    if (fis1.read(keyLenBytes1) == -1 || fis2.read(keyLenBytes2) == -1) break;
+
+                    // read first key from both of the file
+                    keyLen1 = byteArrayToInt(keyLenBytes1);
+                    if (fis1.read(valLenBytes1) == -1) break;
+                    valLen1 = byteArrayToInt(valLenBytes1);
+                    keyByte1 = new byte[keyLen1];
+                    if (fis1.read(keyByte1) == -1) break;
+                    key1 = new String(keyByte1);
+
+                    keyLen2 = byteArrayToInt(keyLenBytes2);
+                    if (fis2.read(valLenBytes2) == -1) break;
+                    valLen2 = byteArrayToInt(valLenBytes2);
+                    keyByte2 = new byte[keyLen2];
+                    if (fis2.read(keyByte2) == -1) break;
+                    key2 = new String(keyByte2);
+                }
+
+                // compare the key value
+                int cmp = key1.compareTo(key2);
+
+                // if key 1 is smller
+                if (cmp < 0) {
+
+                    // if key1 value is present
+                    if (valLen1 != 0) {
+                        // get the key1 value
+                        valByte1 = new byte[valLen1];
+                        if (fis1.read(valByte1) == -1) break;
+
+                        // write the key1 and val1 in file
+                        bos.write(keyLen1);
+                        bos.write(valLen1);
+                        bos.write(keyByte1);
+                        bos.write(valByte1);
+                    }
+
+                    // move to next key in file1 and load key and value length
+                    if (fis1.read(keyLenBytes1) == -1) break;
+                    keyLen1 = byteArrayToInt(keyLenBytes1);
+                    if (fis1.read(valLenBytes1) == -1) break;
+                    valLen1 = byteArrayToInt(valLenBytes1);
+                    keyByte1 = new byte[keyLen1];
+                    if (fis1.read(keyByte1) == -1) break;
+                    key1 = new String(keyByte1);
+
+                } else if (cmp > 0) {
+                    if (valLen2 != 0) {
+                        valByte2 = new byte[valLen2];
+                        if (fis2.read(valByte2) == -1) break;
+
+                        bos.write(keyLen2);
+                        bos.write(valLen2);
+                        bos.write(keyByte2);
+                        bos.write(valByte2);
+                    }
+
+                    if (fis2.read(keyLenBytes2) == -1) break;
+                    keyLen2 = byteArrayToInt(keyLenBytes2);
+                    if (fis2.read(valLenBytes2) == -1) break;
+                    valLen2 = byteArrayToInt(valLenBytes2);
+                    keyByte2 = new byte[keyLen2];
+                    if (fis2.read(keyByte2) == -1) break;
+                    key2 = new String(keyByte2);
+
+                } else {
+                    if (valLen1 != 0) {
+                        bos.write(keyLen1);
+                        bos.write(valLen1);
+                        bos.write(keyByte1);
+                        bos.write(valByte1);
+                    }
+                    // file1 key read
+                    if (fis1.read(keyLenBytes1) == -1) break;
+                    keyLen1 = byteArrayToInt(keyLenBytes1);
+                    if (fis1.read(valLenBytes1) == -1) break;
+                    valLen1 = byteArrayToInt(valLenBytes1);
+                    keyByte1 = new byte[keyLen1];
+                    if (fis1.read(keyByte1) == -1) break;
+                    key1 = new String(keyByte1);
+
+                    // file2 key read
+                    if (fis2.read(keyLenBytes2) == -1) break;
+                    keyLen2 = byteArrayToInt(keyLenBytes2);
+                    if (fis2.read(valLenBytes2) == -1) break;
+                    valLen2 = byteArrayToInt(valLenBytes2);
+                    keyByte2 = new byte[keyLen2];
+                    if (fis2.read(keyByte2) == -1) break;
+                    key2 = new String(keyByte2);
+                }
+            }
+        } catch (Exception e) {
+            log.error("error during compaction",e);
+            throw e;
+        }
+    }
 
     public String get(String targetKey) {
 
