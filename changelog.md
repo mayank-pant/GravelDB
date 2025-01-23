@@ -22,3 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - basic parser for syntax checking
 - interface wherever possible
 - synchronous operation, blocking io -- for now
+
+## [0.0.2] - 2025-01-23
+### Added
+- file compaction on threshold of two files
+- UUID for naming the sstable file
