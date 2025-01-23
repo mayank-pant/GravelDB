@@ -14,6 +14,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.UUID;
 
 public class LSMTree implements KeyValueStore {
 
@@ -48,7 +49,7 @@ public class LSMTree implements KeyValueStore {
 
     public void flushMemtable(Memtable memtable) {
         try {
-            String filePath = DATA_DIR + "/" + memtable.hashCode() +
+            String filePath = DATA_DIR + "/" + UUID.randomUUID() +
                     "_" +
                     FILE_POSTFIX;
 
@@ -87,6 +88,7 @@ public class LSMTree implements KeyValueStore {
             }
 
             ssTable.addSSTable(filePath);
+            ssTable.compaction();
             writeAheadLog.clear();
         } catch (Exception e) {
             logger.error("error while converting memtable to sstable",e);

@@ -4,7 +4,6 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 wal.txt
-graveldb-client.py
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
