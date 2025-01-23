@@ -11,6 +11,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.UUID;
 
 public class SSTableIO implements SSTable {
 
@@ -52,12 +53,14 @@ public class SSTableIO implements SSTable {
         if (ssTableList.size() < 2) return;
 
         // generate new output file
-        String outputFileName = DATA_DIR+"/"+ssTableList.get(0).hashCode()+ssTableList.get(1)+"_"+FILE_POSTFIX;
+        String outputFileName = DATA_DIR+"/"+ UUID.randomUUID() +"_"+FILE_POSTFIX;
         File outputFile = Files.createFile(Path.of(outputFileName)).toFile();
 
         // open input and output streams
-        InputStream fis1 = new BufferedInputStream(new FileInputStream(ssTableList.get(0)));
-        InputStream fis2 = new BufferedInputStream(new FileInputStream(ssTableList.get(1)));
+        String file2 = ssTableList.pollLast();
+        String file1 = ssTableList.pollLast();
+        InputStream fis2 = new BufferedInputStream(new FileInputStream(file2));
+        InputStream fis1 = new BufferedInputStream(new FileInputStream(file1));
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(outputFile));
 
         // initialize variables to store values
@@ -114,13 +117,14 @@ public class SSTableIO implements SSTable {
                         if (fis1.read(valByte1) == -1) break;
 
                         // write the key1 and val1 in file
-                        bos.write(keyLen1);
-                        bos.write(valLen1);
+                        bos.write(intToByteArray(keyLen1));
+                        bos.write(intToByteArray(valLen1));
                         bos.write(keyByte1);
                         bos.write(valByte1);
                     }
 
                     // move to next key in file1 and load key and value length
+                    key1 = "";
                     if (fis1.read(keyLenBytes1) == -1) break;
                     keyLen1 = byteArrayToInt(keyLenBytes1);
                     if (fis1.read(valLenBytes1) == -1) break;
@@ -134,12 +138,13 @@ public class SSTableIO implements SSTable {
                         valByte2 = new byte[valLen2];
                         if (fis2.read(valByte2) == -1) break;
 
-                        bos.write(keyLen2);
-                        bos.write(valLen2);
+                        bos.write(intToByteArray(keyLen2));
+                        bos.write(intToByteArray(valLen2));
                         bos.write(keyByte2);
                         bos.write(valByte2);
                     }
 
+                    key2 = "";
                     if (fis2.read(keyLenBytes2) == -1) break;
                     keyLen2 = byteArrayToInt(keyLenBytes2);
                     if (fis2.read(valLenBytes2) == -1) break;
@@ -150,12 +155,13 @@ public class SSTableIO implements SSTable {
 
                 } else {
                     if (valLen1 != 0) {
-                        bos.write(keyLen1);
-                        bos.write(valLen1);
+                        bos.write(intToByteArray(keyLen1));
+                        bos.write(intToByteArray(valLen1));
                         bos.write(keyByte1);
                         bos.write(valByte1);
                     }
                     // file1 key read
+                    key1 = "";
                     if (fis1.read(keyLenBytes1) == -1) break;
                     keyLen1 = byteArrayToInt(keyLenBytes1);
                     if (fis1.read(valLenBytes1) == -1) break;
@@ -165,6 +171,7 @@ public class SSTableIO implements SSTable {
                     key1 = new String(keyByte1);
 
                     // file2 key read
+                    key2 = "";
                     if (fis2.read(keyLenBytes2) == -1) break;
                     keyLen2 = byteArrayToInt(keyLenBytes2);
                     if (fis2.read(valLenBytes2) == -1) break;
@@ -174,10 +181,59 @@ public class SSTableIO implements SSTable {
                     key2 = new String(keyByte2);
                 }
             }
+
+            if (!key1.isEmpty()) {
+                while(true) {
+                    if (valLen1 != 0) {
+                        // get the key1 value
+                        valByte1 = new byte[valLen1];
+                        if (fis1.read(valByte1) == -1) break;
+
+                        // write the key1 and val1 in file
+                        bos.write(intToByteArray(keyLen1));
+                        bos.write(intToByteArray(valLen1));
+                        bos.write(keyByte1);
+                        bos.write(valByte1);
+                    }
+
+                    if (fis1.read(keyLenBytes1) == -1) break;
+                    keyLen1 = byteArrayToInt(keyLenBytes1);
+                    if (fis1.read(valLenBytes1) == -1) break;
+                    valLen1 = byteArrayToInt(valLenBytes1);
+                    keyByte1 = new byte[keyLen1];
+                    if (fis1.read(keyByte1) == -1) break;
+                }
+            }
+
+            if (!key2.isEmpty()) {
+                while(true) {
+                    if (valLen2 != 0) {
+                        valByte2 = new byte[valLen2];
+                        if (fis2.read(valByte2) == -1) break;
+
+                        bos.write(intToByteArray(keyLen2));
+                        bos.write(intToByteArray(valLen2));
+                        bos.write(keyByte2);
+                        bos.write(valByte2);
+                    }
+
+                    if (fis2.read(keyLenBytes2) == -1) break;
+                    keyLen2 = byteArrayToInt(keyLenBytes2);
+                    if (fis2.read(valLenBytes2) == -1) break;
+                    valLen2 = byteArrayToInt(valLenBytes2);
+                    keyByte2 = new byte[keyLen2];
+                    if (fis2.read(keyByte2) == -1) break;
+                }
+            }
+
         } catch (Exception e) {
             log.error("error during compaction",e);
             throw e;
         }
+
+        Files.delete(Path.of(file1));
+        Files.delete(Path.of(file2));
+        ssTableList.addLast(outputFileName);
     }
 
     public String get(String targetKey) {
@@ -231,4 +287,14 @@ public class SSTableIO implements SSTable {
                 ((bytes[2] & 0xFF) << 8) |
                 (bytes[3] & 0xFF);
     }
+
+    public static byte[] intToByteArray(int value) {
+        return new byte[] {
+                (byte) (value >>> 24), // Extracts the most significant byte
+                (byte) (value >>> 16), // Extracts the second most significant byte
+                (byte) (value >>> 8),  // Extracts the third most significant byte
+                (byte) value           // Extracts the least significant byte
+        };
+    }
+
 }
