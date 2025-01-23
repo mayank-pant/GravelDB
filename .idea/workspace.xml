@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="20923986-f42b-48f3-9acb-308e1cdbfef4" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/sstable/SSTableIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/sstable/SSTableIO.java" afterDir="false" />
-    </list>
+    <list default="true" id="20923986-f42b-48f3-9acb-308e1cdbfef4" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -17,6 +14,23 @@
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
     </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="GravelDB" type="f1a62948:ProjectNode" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -49,7 +63,7 @@
     "Gradle.Download Sources.executor": "Run",
     "Gradle.GravelDB [:graveldb.Main.main()].executor": "Run",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "2-file-compaction",
+    "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "D:/LSM-Tree",
     "settings.editor.selected.configurable": "preferences.fileTypes"
