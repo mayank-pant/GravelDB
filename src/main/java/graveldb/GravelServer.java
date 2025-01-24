@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.util.List;
 
 public class GravelServer {
@@ -30,6 +32,10 @@ public class GravelServer {
     public void start() throws InterruptedException {
         final EventLoopGroup bossGroup = new NioEventLoopGroup();
         final EventLoopGroup workerGroup = new NioEventLoopGroup();
+
+        if (!isPortAvailable(port)) {
+            throw new IllegalStateException("Port " + port + " is already in use.");
+        }
 
         try (bossGroup; workerGroup) {
             ServerBootstrap bootstrap = new ServerBootstrap();
@@ -50,8 +56,25 @@ public class GravelServer {
             }
 
             ChannelFuture future = bootstrap.bind(port).sync();
-            logger.info("Server started on port {}", port);
-            future.channel().closeFuture().sync();
+            if (future.isSuccess()) {
+                logger.info("Server started on port {}", port);
+                future.channel().closeFuture().sync();
+            } else {
+                logger.error("Failed to bind to port {}: {}", port, future.cause().getMessage());
+            }
+
+        } catch (Exception e) {
+            logger.error("error in establishing connection",e);
+            throw new RuntimeException("error in establishing connection, port - "+port);
+        }
+    }
+
+    private boolean isPortAvailable(int port) {
+        try (ServerSocket serverSocket = new ServerSocket()) {
+            serverSocket.bind(new InetSocketAddress(port));
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 

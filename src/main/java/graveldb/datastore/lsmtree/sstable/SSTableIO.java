@@ -49,6 +49,11 @@ public class SSTableIO implements SSTable {
     @Override
     public void compaction() throws IOException {
 
+        // check if compaction threshold reached
+        // get the files to compact
+        // start reading the key and value from file
+        //
+
         // ss table size should atleast be 2 to proceed
         if (ssTableList.size() < 2) return;
 
