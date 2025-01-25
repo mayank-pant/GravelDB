@@ -1,10 +1,12 @@
 package graveldb.datastore.lsmtree.memtable;
 
 import graveldb.datastore.KeyValueStore;
+import graveldb.datastore.lsmtree.KeyValuePair;
 
-public interface Memtable extends KeyValueStore, Iterable<String> {
+public interface Memtable extends KeyValueStore, Iterable<KeyValuePair> {
 
     void updateMemtableStatus(MemtableStatus memtableStatus);
     MemtableStatus getMemtableStatus();
+    boolean canFlush();
 
 }

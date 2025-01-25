@@ -1,25 +1,33 @@
 package graveldb.datastore.lsmtree.sstable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
+import graveldb.datastore.lsmtree.memtable.Memtable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Objects;
 
-public class SSTableX implements Iterable<KeyValuePair> {
+public class SSTableImpl implements SSTable {
+
+    private static final Logger log = LoggerFactory.getLogger(SSTableImpl.class);
 
     private final String FILE_NAME;
-    private static final Logger log = LoggerFactory.getLogger(SSTableX.class);
 
-    public SSTableX(String fileName) {
+    public SSTableImpl(String fileName) throws IOException {
         this.FILE_NAME = fileName;
+        if (!Files.exists(Path.of(fileName))) Files.createFile(Path.of(fileName));
     }
 
     @Override
-    public Iterator<KeyValuePair> iterator() {
+    public SSTableIterator iterator() {
         try {
             return new SSTableIterator();
         } catch (FileNotFoundException e) {
@@ -27,18 +35,17 @@ public class SSTableX implements Iterable<KeyValuePair> {
         }
     }
 
-    public boolean delete() throws IOException {
-        Files.delete(Path.of(FILE_NAME));
-        return true;
-    }
+    @Override
+    public String getFileName() {return FILE_NAME;}
 
-    class SSTableIterator implements Iterator<KeyValuePair> {
+    @Override
+    public SSTableWriter getWriter() throws FileNotFoundException { return new SSTableWriter(); }
+
+    public class SSTableIterator implements Iterator<KeyValuePair>, AutoCloseable {
 
         BufferedInputStream fis;
 
-        public SSTableIterator() throws FileNotFoundException {
-            fis = new BufferedInputStream(new FileInputStream(FILE_NAME));
-        }
+        public SSTableIterator() throws FileNotFoundException { fis = new BufferedInputStream(new FileInputStream(FILE_NAME)); }
 
         @Override
         public boolean hasNext() {
@@ -60,22 +67,45 @@ public class SSTableX implements Iterable<KeyValuePair> {
                 byte[] keybytes = new byte[byteArrayToInt(keyLenBytes)];
                 fis.read(keybytes);
                 String value = "";
+                boolean isDeleted = true;
                 if (byteArrayToInt(valLenBytes) != 0) {
                     byte[] valueBytes = new byte[byteArrayToInt(valLenBytes)];
                     fis.read(valueBytes);
                     value = new String(valueBytes);
+                    isDeleted = false;
                 }
-
-                KeyValuePair kvp = new KeyValuePair(
+                return new KeyValuePair(
                         new String(keybytes),
-                        value
+                        value,
+                        isDeleted
                 );
-
-                return kvp;
             } catch (Exception e) {
                 log.error("error reading the next value in sstable file {}", FILE_NAME);
-                return new KeyValuePair(); }
+                return null; }
         }
+
+        @Override
+        public void close() throws Exception { fis.close(); }
+    }
+
+    public class SSTableWriter implements AutoCloseable {
+
+        BufferedOutputStream bos;
+
+        public SSTableWriter() throws FileNotFoundException {
+            bos = new BufferedOutputStream(new FileOutputStream(FILE_NAME));
+        }
+
+        public void write(KeyValuePair kvp) throws IOException {
+            bos.write(intToByteArray(kvp.key().getBytes().length));
+            bos.write(intToByteArray(kvp.value().getBytes().length));
+            bos.write(kvp.key().getBytes());
+            bos.write(kvp.value().getBytes());
+        }
+
+        @Override
+        public void close() throws Exception { bos.flush();
+            bos.close(); }
     }
 
     private static int byteArrayToInt(byte[] bytes) {

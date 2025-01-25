@@ -4,6 +4,7 @@ import graveldb.datastore.KeyValueStore;
 import graveldb.lexer.Lexer;
 import graveldb.parser.Command;
 import graveldb.parser.Parser;
+import graveldb.parser.Request;
 import graveldb.wal.WriteAheadLog;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -31,16 +32,16 @@ public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
         String input = msg.toString(StandardCharsets.UTF_8).trim();
 
         try {
-            // Step 1: Tokenize
+            // Tokenize
             List<String> tokens = lexer.tokenize(input);
 
-            // Step 2: Parse
-            Command command = parser.parse(tokens);
+            // Parse
+            Request request = parser.parse(tokens);
 
-            // Step 3: Process command synchronously
-            String response = processCommand(command);
+            // process command synchronously
+            String response = processCommand(request);
 
-            // Write response back to client
+            // write response back to client
             ctx.writeAndFlush(ctx.alloc().buffer().writeBytes(response.getBytes()));
 
         } catch (IllegalArgumentException e) {
@@ -50,24 +51,20 @@ public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
         }
     }
 
-    private String processCommand(Command command) throws IllegalArgumentException {
+    private String processCommand(Request request) throws IllegalArgumentException {
         try {
-            switch (command.operation()) {
-                case "SET":
-                    wal.append("SET", command.key(), command.value());
-                    store.put(command.key(), command.value());
+            switch (request.command()) {
+                case Command.SET:
+                    wal.append("SET", request.key(), request.value());
+                    store.put(request.key(), request.value());
                     return "+OK\r\n";
-                case "GET":
-                    String value = store.get(command.key());
+                case Command.GET:
+                    String value = store.get(request.key());
                     return value == null ? "$-1\r\n" : "$" + value.length() + "\r\n" + value + "\r\n";
-                case "DEL":
-                    wal.append("DEL", command.key(), null);
-                    store.delete(command.key());
+                case Command.DEL:
+                    wal.append("DEL", request.key(), null);
+                    store.delete(request.key());
                     return ":OK\r\n";
-                case "DBSIZE":
-                    return ":" + store.size() + "\r\n";
-                case "GETALL":
-                    return store.getAll() + "\r\n";
                 default:
                     return "-ERR Unknown command\r\n";
             }
