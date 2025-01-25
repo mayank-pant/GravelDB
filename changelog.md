@@ -27,3 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - file compaction on threshold of two files
 - UUID for naming the sstable file
+
+## [0.0.3] - 2025-01-25
+### Changed
+- limited KeyValueSTore methods to put, get del
+- LSMTree now governs compaction, flushMemtable
+- SSTable interface and SSTableImpl representing an sstable file having reader and writer methods
+### Added
+- Using KeyValuePair to communicate across application
+- Enumify the commands SET, GET, DEL for parser
