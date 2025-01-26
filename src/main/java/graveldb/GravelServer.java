@@ -33,10 +33,6 @@ public class GravelServer {
         final EventLoopGroup bossGroup = new NioEventLoopGroup();
         final EventLoopGroup workerGroup = new NioEventLoopGroup();
 
-        if (!isPortAvailable(port)) {
-            throw new IllegalStateException("Port " + port + " is already in use.");
-        }
-
         try (bossGroup; workerGroup) {
             ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(bossGroup, workerGroup)
@@ -66,15 +62,6 @@ public class GravelServer {
         } catch (Exception e) {
             logger.error("error in establishing connection",e);
             throw new RuntimeException("error in establishing connection, port - "+port);
-        }
-    }
-
-    private boolean isPortAvailable(int port) {
-        try (ServerSocket serverSocket = new ServerSocket()) {
-            serverSocket.bind(new InetSocketAddress(port));
-            return true;
-        } catch (IOException e) {
-            return false;
         }
     }
 
