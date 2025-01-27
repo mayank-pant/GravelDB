@@ -13,12 +13,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class LSMTree implements KeyValueStore {
 
     private static final Logger log = LoggerFactory.getLogger(LSMTree.class);
 
     private Memtable memtable;
+    private LinkedList<Memtable> immMemtable;
     private final LinkedList<SSTableImpl> ssTables;
     private final WriteAheadLog writeAheadLog;
     private static final String FILE_POSTFIX = "_ssfile.data";
@@ -28,6 +32,7 @@ public class LSMTree implements KeyValueStore {
         this.writeAheadLog = wal;
         this.ssTables = new LinkedList<>();
         this.memtable = new ConcurrentSkipListMemtable();
+        this.immMemtable = new LinkedList<>();
         fillSstableList();
     }
 
@@ -52,6 +57,33 @@ public class LSMTree implements KeyValueStore {
         memtable.put(key, value);
         if (!memtable.canFlush()) return;
 
+        // if memtable exceeds a certain threshold
+        //  start its compaction,
+        //  replace the memtable with new memtable, this should be synchronized
+        //  reads should also go to old memtable till the flushing process complete,
+        //      make another immemtable variable and assign current memtable to it
+        //      but what if during memtable flush, another memtable threshodld reached, but previous memtable flushing is not complete yet
+        //          in that case we will use a linekdlist and befoe flushing the memtable it will added at the begginig of linkedlist
+        //  once flushing complete the read should be now rediected to sstable
+        // then make the memtable immutable by moving it to LinkedList by adding it first in the list
+        // start its compaction
+
+        // a memtable starts its flush and add itself to at the first pos of immlinkedlist
+        // we will start flushing if threads are available and mark the status of memtable to flushing
+        // another memtable threshold is reached, threads are available so it starts it flushing,
+        // the first memtable has finished its flushing then i will start searching from the end of ll to pop the memtable
+        // but what if the newer memtable has finished the flushing process beofre older memtable, this can give inconsistent result
+        //      from db
+        //      in that case on any start and end of flushing process, we will check the end of the memll if there is any mem that gahs finished its
+        //          flushing so wew ill remove it
+
+        immMemtable.addFirst(memtable);
+        memtable = new ConcurrentSkipListMemtable();
+
+        ExecutorService executorService = Executors.newFixedThreadPool();
+
+        // LinkedBlockingQueue
+        // ConcurrentLinkedQueue
         try {
             flushMemtable();
             memtable = new ConcurrentSkipListMemtable();

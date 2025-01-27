@@ -11,23 +11,33 @@ public class ConcurrentSkipListMemtable implements Memtable {
 
     private final ConcurrentMap<String, String> concurrentMap;
     private MemtableStatus memtableStatus;
+    private int size;
+    pribate int FLUSH_THRESHOLD = 1024 * 4 ;
 
     public ConcurrentSkipListMemtable() {
         this.concurrentMap = new ConcurrentSkipListMap<>();
         this.memtableStatus = MemtableStatus.ACTIVE;
+        this.size = 0;
     }
 
     @Override
-    public void updateMemtableStatus(MemtableStatus memtableStatus) {this.memtableStatus = memtableStatus;}
+    public void updateMemtableStatus(MemtableStatus memtableStatus) {
+        this.memtableStatus = memtableStatus;
+    }
 
     @Override
     public MemtableStatus getMemtableStatus() {return memtableStatus;}
 
     @Override
-    public boolean canFlush() { return concurrentMap.size() > 10; }
+    public boolean canFlush() {
+        return concurrentMap.size() > FLUSH_THRESHOLD;
+    }
 
     @Override
-    public void put(String key, String value) {concurrentMap.put(key, value);}
+    public void put(String key, String value) {
+        size += key.getBytes().length + value.getBytes().length + 4 + 4;
+        concurrentMap.put(key, value);
+    }
 
     @Override
     public String get(String key) {return concurrentMap.get(key);}
