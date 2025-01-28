@@ -7,7 +7,7 @@
     <list default="true" id="20923986-f42b-48f3-9acb-308e1cdbfef4" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/MemtableStatus.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/MemtableStatus.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -130,14 +130,6 @@
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java</url>
-          <line>151</line>
-          <properties>
-            <option name="lambda-ordinal" value="-1" />
-          </properties>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/sstable/SSTableImpl.java</url>
           <line>106</line>

@@ -3,6 +3,7 @@ package graveldb.datastore.lsmtree;
 import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.lsmtree.memtable.ConcurrentSkipListMemtable;
 import graveldb.datastore.lsmtree.memtable.Memtable;
+import graveldb.datastore.lsmtree.memtable.MemtableStatus;
 import graveldb.datastore.lsmtree.sstable.SSTableImpl;
 import graveldb.wal.WriteAheadLog;
 import org.slf4j.Logger;
@@ -13,9 +14,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
+
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
 public class LSMTree implements KeyValueStore {
 
@@ -28,12 +29,23 @@ public class LSMTree implements KeyValueStore {
     private static final String FILE_POSTFIX = "_ssfile.data";
     private static final String DATA_DIR = "./dbdata/";
 
+    private static final Object memtableLock = new Object();
+
+    ScheduledExecutorService memtableFlusher;
+    ScheduledExecutorService tableCompactor;
+
     public LSMTree(WriteAheadLog wal) throws IOException {
         this.writeAheadLog = wal;
         this.ssTables = new LinkedList<>();
         this.memtable = new ConcurrentSkipListMemtable();
         this.immMemtable = new LinkedList<>();
         fillSstableList();
+
+        memtableFlusher = newSingleThreadScheduledExecutor();
+        memtableFlusher.scheduleAtFixedRate(this::flushMemtable, 50, 50, TimeUnit.MILLISECONDS);
+
+        tableCompactor = Executors.newScheduledThreadPool(3);
+        tableCompactor.scheduleAtFixedRate(this::compaction, 200, 200, TimeUnit.MILLISECONDS);
     }
 
     private void fillSstableList() throws IOException {
@@ -55,7 +67,14 @@ public class LSMTree implements KeyValueStore {
     public void put(String key, String value) throws IOException {
 
         memtable.put(key, value);
-        if (!memtable.canFlush()) return;
+
+        if (memtable.canFlush()) {
+            synchronized (memtableLock) {
+                immMemtable.addFirst(memtable);
+                memtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
+                memtable = new ConcurrentSkipListMemtable();
+            }
+        }
 
         // if memtable exceeds a certain threshold
         //  start its compaction,
@@ -76,21 +95,7 @@ public class LSMTree implements KeyValueStore {
         //      from db
         //      in that case on any start and end of flushing process, we will check the end of the memll if there is any mem that gahs finished its
         //          flushing so wew ill remove it
-
-        immMemtable.addFirst(memtable);
-        memtable = new ConcurrentSkipListMemtable();
-
-        ExecutorService executorService = Executors.newFixedThreadPool();
-
-        // LinkedBlockingQueue
-        // ConcurrentLinkedQueue
-        try {
-            flushMemtable();
-            memtable = new ConcurrentSkipListMemtable();
-        } catch (Exception e) {
-            log.error("error flushing the memtable",e);
-            throw e;
-        }
+        // ConcrrentLinkedQueue
 
     }
 
@@ -109,6 +114,10 @@ public class LSMTree implements KeyValueStore {
 
     public void flushMemtable() {
         try {
+            // loop over immutableMem list and check status for mem which is not flushed yet
+            // take lock on memLL, for memtable which are at last and is flushed so remove them
+            // keep iterating
+
             String filePath = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
 
             SSTableImpl ssTable = new SSTableImpl(filePath);
@@ -147,7 +156,7 @@ public class LSMTree implements KeyValueStore {
         return null;
     }
 
-    public void compaction() throws Exception {
+    public void compaction() {
         // conditon to start compaction
         if (ssTables.size() < 2) return;
 
