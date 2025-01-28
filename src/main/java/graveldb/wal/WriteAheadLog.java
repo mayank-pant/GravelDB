@@ -3,20 +3,19 @@ package graveldb.wal;
 import java.io.*;
 import java.nio.file.*;
 import java.util.List;
+import java.util.UUID;
 
 public class WriteAheadLog {
     private final Path walFile;
+    private static final String WAL_DIR = "./waldata/";
+    private static final String FILE_POSTFIX = "_wal.data";
 
-    public WriteAheadLog(String walFilePath) throws IOException {
-        this.walFile = Paths.get(walFilePath);
-        Files.createDirectories(walFile.getParent()); // Ensure directory exists
-        if (!Files.exists(walFile)) {
-            Files.createFile(walFile); // Create the file if it doesn't exist
-        }
+    public WriteAheadLog() throws IOException {
+        this.walFile = Paths.get(WAL_DIR + UUID.randomUUID() + FILE_POSTFIX);
+        Files.createDirectories(walFile.getParent());
+        if (!Files.exists(walFile)) Files.createFile(walFile);
     }
 
-    // Append an operation to the log
-    // TODO : Optimize for performance by batching WAL writes or using asynchronous processing.
     public synchronized void append(String operation, String key, String value) throws IOException {
         try (FileWriter writer = new FileWriter(walFile.toFile(), true)) {
             String entry = operation + " " + key + (value != null ? " " + value : "") + "\n";
@@ -24,15 +23,16 @@ public class WriteAheadLog {
         }
     }
 
-    // Read the WAL file for recovery
     public List<String> readAll() throws IOException {
         return Files.readAllLines(walFile);
     }
 
-    // Clear the WAL after recovery or compaction
     public synchronized void clear() throws IOException {
         Files.write(walFile, new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
     }
 
+    public synchronized void delete() throws IOException {
+        Files.delete(walFile);
+    }
 }
 

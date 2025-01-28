@@ -22,23 +22,29 @@ public class LSMTree implements KeyValueStore {
 
     private static final Logger log = LoggerFactory.getLogger(LSMTree.class);
 
-    private Memtable memtable;
-    private LinkedList<Memtable> immMemtable;
-    private final LinkedList<SSTableImpl> ssTables;
-    private final WriteAheadLog writeAheadLog;
     private static final String FILE_POSTFIX = "_ssfile.data";
     private static final String DATA_DIR = "./dbdata/";
 
-    private static final Object memtableLock = new Object();
+    private Memtable mutMemtable;
+    private final LinkedList<Memtable> immMemtable;
+    private final LinkedList<SSTableImpl> ssTables;
+    private final WriteAheadLog mutWal;
+    private final ConcurrentHashMap<Memtable, WriteAheadLog> memtableToWalfile;
+
+    // private static final Object memtableLock = new Object();
 
     ScheduledExecutorService memtableFlusher;
     ScheduledExecutorService tableCompactor;
 
-    public LSMTree(WriteAheadLog wal) throws IOException {
-        this.writeAheadLog = wal;
+    public LSMTree() throws IOException {
         this.ssTables = new LinkedList<>();
-        this.memtable = new ConcurrentSkipListMemtable();
+        this.mutMemtable = new ConcurrentSkipListMemtable();
         this.immMemtable = new LinkedList<>();
+        this.memtableToWalfile = new ConcurrentHashMap<>();
+        this.mutWal = new WriteAheadLog();
+
+        memtableToWalfile.put(mutMemtable, mutWal);
+
         fillSstableList();
 
         memtableFlusher = newSingleThreadScheduledExecutor();
@@ -65,64 +71,54 @@ public class LSMTree implements KeyValueStore {
 
     @Override
     public void put(String key, String value) throws IOException {
+        mutWal.append("SET", key, value);
+        mutMemtable.put(key, value);
 
-        memtable.put(key, value);
-
-        if (memtable.canFlush()) {
-            synchronized (memtableLock) {
-                immMemtable.addFirst(memtable);
-                memtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
-                memtable = new ConcurrentSkipListMemtable();
+        if (mutMemtable.canFlush()) {
+            synchronized (immMemtable) {
+                immMemtable.addFirst(mutMemtable);
+                mutMemtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
+                mutMemtable = new ConcurrentSkipListMemtable();
             }
         }
-
-        // if memtable exceeds a certain threshold
-        //  start its compaction,
-        //  replace the memtable with new memtable, this should be synchronized
-        //  reads should also go to old memtable till the flushing process complete,
-        //      make another immemtable variable and assign current memtable to it
-        //      but what if during memtable flush, another memtable threshodld reached, but previous memtable flushing is not complete yet
-        //          in that case we will use a linekdlist and befoe flushing the memtable it will added at the begginig of linkedlist
-        //  once flushing complete the read should be now rediected to sstable
-        // then make the memtable immutable by moving it to LinkedList by adding it first in the list
-        // start its compaction
-
-        // a memtable starts its flush and add itself to at the first pos of immlinkedlist
-        // we will start flushing if threads are available and mark the status of memtable to flushing
-        // another memtable threshold is reached, threads are available so it starts it flushing,
-        // the first memtable has finished its flushing then i will start searching from the end of ll to pop the memtable
-        // but what if the newer memtable has finished the flushing process beofre older memtable, this can give inconsistent result
-        //      from db
-        //      in that case on any start and end of flushing process, we will check the end of the memll if there is any mem that gahs finished its
-        //          flushing so wew ill remove it
-        // ConcrrentLinkedQueue
-
     }
 
     @Override
     public String get(String key) {
-
-        String value = memtable.get(key);
+        String value = mutMemtable.get(key);
         if (value == null) return getFromSstable(key);
         else if (value.isEmpty()) return null;
         else return value;
-
     }
 
     @Override
-    public void delete(String key) throws IOException { memtable.put(key, ""); }
+    public void delete(String key) throws IOException {
+        mutWal.append("DEL", key, null);
+        mutMemtable.put(key, "");
+    }
 
     public void flushMemtable() {
         try {
-            // loop over immutableMem list and check status for mem which is not flushed yet
-            // take lock on memLL, for memtable which are at last and is flushed so remove them
-            // keep iterating
+            Memtable toBeFlushedMemtable = null;
 
-            String filePath = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
+            synchronized (immMemtable) {
+                for (Iterator<Memtable> it = immMemtable.descendingIterator(); it.hasNext();) {
+                    Memtable curMemtable = it.next();
+                    if (curMemtable.getMemtableStatus().equals(MemtableStatus.ACTIVE)) {
+                        toBeFlushedMemtable = curMemtable;
+                        curMemtable.updateMemtableStatus(MemtableStatus.FLUSHING);
+                        break;
+                    }
+                }
+            }
 
-            SSTableImpl ssTable = new SSTableImpl(filePath);
+            if (toBeFlushedMemtable == null) return;
+
+            String ssTableFilePath = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
+
+            SSTableImpl ssTable = new SSTableImpl(ssTableFilePath);
             SSTableImpl.SSTableWriter ssTableWriter = ssTable.getWriter();
-            Iterator<KeyValuePair> memtableIterator = memtable.iterator();
+            Iterator<KeyValuePair> memtableIterator = toBeFlushedMemtable.iterator();
 
             try (ssTableWriter) {
                 while (memtableIterator.hasNext()) {
@@ -130,9 +126,15 @@ public class LSMTree implements KeyValueStore {
                 }
             }
 
-            ssTables.addFirst(ssTable);
-            compaction();
-            writeAheadLog.clear();
+            synchronized (immMemtable) {
+                immMemtable.pollLast();
+            }
+
+            synchronized (ssTables) {
+                ssTables.add(ssTable);
+            }
+
+            memtableToWalfile.get(mutMemtable).delete();
         } catch (Exception e) {
             log.error("error while converting memtable to sstable", e);
         }
@@ -157,10 +159,19 @@ public class LSMTree implements KeyValueStore {
     }
 
     public void compaction() {
-        // conditon to start compaction
+        // check the size of sstables, if it >= 2 then start compaction
+        // pop the last two sstables
+
         if (ssTables.size() < 2) return;
 
         // get sstable to compact and there readers / iterator
+        SSTableImpl ssTable2 = ssTables.pollLast();
+        SSTableImpl ssTable1 = ssTables.pollLast();
+        for (Iterator<SSTableImpl> it = ssTables.iterator(); it.hasNext(); ) {
+            SSTableImpl curSstable = it.next();
+            ssTable2 = curSstable;
+            ssTable1 = curSstable;
+        }
         SSTableImpl ssTable2 = ssTables.pollLast();
         SSTableImpl ssTable1 = ssTables.pollLast();
         if (ssTable1 == null || ssTable2 == null) return;

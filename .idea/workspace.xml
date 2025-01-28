@@ -6,8 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="20923986-f42b-48f3-9acb-308e1cdbfef4" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/GravelServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/GravelServer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/RedisServerHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/RedisServerHandler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/MemtableStatus.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/MemtableStatus.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/wal/WriteAheadLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/wal/WriteAheadLog.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

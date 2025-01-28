@@ -21,7 +21,7 @@ public class GravelServer {
     private final KeyValueStore store;
     private final WriteAheadLog wal;
     private static final Logger logger = LoggerFactory.getLogger(GravelServer.class);
-    private static final String WAL_FILE = "./wal.txt";
+
 
     public GravelServer(int port) throws IOException {
         this.port = port;

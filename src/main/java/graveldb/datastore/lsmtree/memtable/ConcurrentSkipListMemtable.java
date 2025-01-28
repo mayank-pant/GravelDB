@@ -2,8 +2,10 @@ package graveldb.datastore.lsmtree.memtable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
 
+import java.io.File;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -12,12 +14,17 @@ public class ConcurrentSkipListMemtable implements Memtable {
     private final ConcurrentMap<String, String> concurrentMap;
     private MemtableStatus memtableStatus;
     private int size;
-    pribate int FLUSH_THRESHOLD = 1024 * 4 ;
+    private final static int FLUSH_THRESHOLD = 1024 * 4 ;
+    private final String walFile;
+
 
     public ConcurrentSkipListMemtable() {
         this.concurrentMap = new ConcurrentSkipListMap<>();
         this.memtableStatus = MemtableStatus.ACTIVE;
         this.size = 0;
+        this.walFile = String.valueOf(UUID.randomUUID());
+
+
     }
 
     @Override
@@ -26,11 +33,11 @@ public class ConcurrentSkipListMemtable implements Memtable {
     }
 
     @Override
-    public MemtableStatus getMemtableStatus() {return memtableStatus;}
+    public MemtableStatus getMemtableStatus() { return memtableStatus; }
 
     @Override
     public boolean canFlush() {
-        return concurrentMap.size() > FLUSH_THRESHOLD;
+        return size > FLUSH_THRESHOLD;
     }
 
     @Override
