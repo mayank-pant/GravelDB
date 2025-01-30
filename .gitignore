@@ -19,6 +19,7 @@ out/
 *ssfile.data
 dbdata
 .idea
+waldata/
 
 ### Eclipse ###
 .apt_generated

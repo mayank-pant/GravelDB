@@ -19,10 +19,10 @@ public class SSTableImpl implements SSTable {
 
     private static final Logger log = LoggerFactory.getLogger(SSTableImpl.class);
 
-    private final String FILE_NAME;
+    private final String fileName;
 
     public SSTableImpl(String fileName) throws IOException {
-        this.FILE_NAME = fileName;
+        this.fileName = fileName;
         if (!Files.exists(Path.of(fileName))) Files.createFile(Path.of(fileName));
     }
 
@@ -36,7 +36,7 @@ public class SSTableImpl implements SSTable {
     }
 
     @Override
-    public String getFileName() {return FILE_NAME;}
+    public String getFileName() {return fileName;}
 
     @Override
     public SSTableWriter getWriter() throws FileNotFoundException { return new SSTableWriter(); }
@@ -45,14 +45,14 @@ public class SSTableImpl implements SSTable {
 
         BufferedInputStream fis;
 
-        public SSTableIterator() throws FileNotFoundException { fis = new BufferedInputStream(new FileInputStream(FILE_NAME)); }
+        public SSTableIterator() throws FileNotFoundException { fis = new BufferedInputStream(new FileInputStream(fileName)); }
 
         @Override
         public boolean hasNext() {
             try {
                 return fis.available() > 0;
             } catch (IOException e) {
-                log.error("error while checking for available bytes to read from sstable {}",FILE_NAME);
+                log.error("error while checking for available bytes to read from sstable {}", fileName);
                 throw new RuntimeException(e);
             }
         }
@@ -80,7 +80,7 @@ public class SSTableImpl implements SSTable {
                         isDeleted
                 );
             } catch (Exception e) {
-                log.error("error reading the next value in sstable file {}", FILE_NAME);
+                log.error("error reading the next value in sstable file {}", fileName);
                 return null; }
         }
 
@@ -93,7 +93,7 @@ public class SSTableImpl implements SSTable {
         BufferedOutputStream bos;
 
         public SSTableWriter() throws FileNotFoundException {
-            bos = new BufferedOutputStream(new FileOutputStream(FILE_NAME));
+            bos = new BufferedOutputStream(new FileOutputStream(fileName));
         }
 
         public void write(KeyValuePair kvp) throws IOException {

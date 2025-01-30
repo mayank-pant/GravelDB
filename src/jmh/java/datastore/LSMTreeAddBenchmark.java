@@ -17,8 +17,7 @@ public class LSMTreeAddBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        WriteAheadLog wal = new WriteAheadLog("./wal.txt");
-        tree = new LSMTree(wal);
+        tree = new LSMTree();
         keys = genItems();
     }
 

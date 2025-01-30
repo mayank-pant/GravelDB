@@ -17,13 +17,11 @@ import java.util.List;
 public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private final KeyValueStore store;
-    private final WriteAheadLog wal;
     private final Lexer lexer = new Lexer();
     private final Parser parser = new Parser();
 
-    public RedisServerHandler(KeyValueStore store, WriteAheadLog wal) {
+    public RedisServerHandler(KeyValueStore store) {
         this.store = store;
-        this. wal = wal;
     }
 
     @Override

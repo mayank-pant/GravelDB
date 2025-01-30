@@ -26,22 +26,20 @@ public class LSMTree implements KeyValueStore {
     private static final String DATA_DIR = "./dbdata/";
 
     private Memtable mutMemtable;
-    private final LinkedList<Memtable> immMemtable;
+    private final LinkedList<Memtable> immMemtables;
     private final LinkedList<SSTableImpl> ssTables;
-    private final WriteAheadLog mutWal;
+    private WriteAheadLog mutWal;
     private final ConcurrentHashMap<Memtable, WriteAheadLog> memtableToWalfile;
-
-    // private static final Object memtableLock = new Object();
 
     ScheduledExecutorService memtableFlusher;
     ScheduledExecutorService tableCompactor;
 
     public LSMTree() throws IOException {
-        this.ssTables = new LinkedList<>();
         this.mutMemtable = new ConcurrentSkipListMemtable();
-        this.immMemtable = new LinkedList<>();
-        this.memtableToWalfile = new ConcurrentHashMap<>();
+        this.immMemtables = new LinkedList<>();
+        this.ssTables = new LinkedList<>();
         this.mutWal = new WriteAheadLog();
+        this.memtableToWalfile = new ConcurrentHashMap<>();
 
         memtableToWalfile.put(mutMemtable, mutWal);
 
@@ -50,7 +48,7 @@ public class LSMTree implements KeyValueStore {
         memtableFlusher = newSingleThreadScheduledExecutor();
         memtableFlusher.scheduleAtFixedRate(this::flushMemtable, 50, 50, TimeUnit.MILLISECONDS);
 
-        tableCompactor = Executors.newScheduledThreadPool(3);
+        tableCompactor = newSingleThreadScheduledExecutor();
         tableCompactor.scheduleAtFixedRate(this::compaction, 200, 200, TimeUnit.MILLISECONDS);
     }
 
@@ -61,6 +59,8 @@ public class LSMTree implements KeyValueStore {
         File directory = new File(DATA_DIR);
         File[] files = directory.listFiles();
         if (files == null) return;
+
+        log.info("{} sstables found in the directory", files.length);
 
         Arrays.sort(files, Comparator.comparingLong(File::lastModified));
 
@@ -75,10 +75,12 @@ public class LSMTree implements KeyValueStore {
         mutMemtable.put(key, value);
 
         if (mutMemtable.canFlush()) {
-            synchronized (immMemtable) {
-                immMemtable.addFirst(mutMemtable);
+            synchronized (immMemtables) {
+                immMemtables.addFirst(mutMemtable);
                 mutMemtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
                 mutMemtable = new ConcurrentSkipListMemtable();
+                mutWal = new WriteAheadLog();
+                memtableToWalfile.put(mutMemtable, mutWal);
             }
         }
     }
@@ -99,20 +101,11 @@ public class LSMTree implements KeyValueStore {
 
     public void flushMemtable() {
         try {
-            Memtable toBeFlushedMemtable = null;
-
-            synchronized (immMemtable) {
-                for (Iterator<Memtable> it = immMemtable.descendingIterator(); it.hasNext();) {
-                    Memtable curMemtable = it.next();
-                    if (curMemtable.getMemtableStatus().equals(MemtableStatus.ACTIVE)) {
-                        toBeFlushedMemtable = curMemtable;
-                        curMemtable.updateMemtableStatus(MemtableStatus.FLUSHING);
-                        break;
-                    }
-                }
-            }
+            Memtable toBeFlushedMemtable = immMemtables.peekLast();
 
             if (toBeFlushedMemtable == null) return;
+
+            log.info("started flushing memtable");
 
             String ssTableFilePath = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
 
@@ -126,17 +119,18 @@ public class LSMTree implements KeyValueStore {
                 }
             }
 
-            synchronized (immMemtable) {
-                immMemtable.pollLast();
+            synchronized (immMemtables) {
+                immMemtables.pollLast();
             }
 
             synchronized (ssTables) {
                 ssTables.add(ssTable);
             }
 
-            memtableToWalfile.get(mutMemtable).delete();
+            memtableToWalfile.get(toBeFlushedMemtable).delete();
+
         } catch (Exception e) {
-            log.error("error while converting memtable to sstable", e);
+            log.error("error while flushing memtable to sstable", e);
         }
     }
 
@@ -159,82 +153,102 @@ public class LSMTree implements KeyValueStore {
     }
 
     public void compaction() {
-        // check the size of sstables, if it >= 2 then start compaction
-        // pop the last two sstables
+        try {
+            if (ssTables.size() < 2) return;
 
-        if (ssTables.size() < 2) return;
+            log.info("started compacting sstables");
 
-        // get sstable to compact and there readers / iterator
-        SSTableImpl ssTable2 = ssTables.pollLast();
-        SSTableImpl ssTable1 = ssTables.pollLast();
-        for (Iterator<SSTableImpl> it = ssTables.iterator(); it.hasNext(); ) {
-            SSTableImpl curSstable = it.next();
-            ssTable2 = curSstable;
-            ssTable1 = curSstable;
-        }
-        SSTableImpl ssTable2 = ssTables.pollLast();
-        SSTableImpl ssTable1 = ssTables.pollLast();
-        if (ssTable1 == null || ssTable2 == null) return;
-        SSTableImpl.SSTableIterator fis2 = ssTable2.iterator();
-        SSTableImpl.SSTableIterator fis1 = ssTable1.iterator();
+            // get sstable to compact and there readers / iterator
+            SSTableImpl ssTable2 = null;
+            SSTableImpl ssTable1 = null;
+            int count = 0;
+            for (Iterator<SSTableImpl> it = ssTables.descendingIterator(); it.hasNext(); ) {
+                SSTableImpl curSstable = it.next();
+                if (count == 0) ssTable2 = curSstable;
+                if (count == 1) {
+                    ssTable1 = curSstable;
+                    break;
+                }
+                count++;
+            }
 
-        // create new sstable and get its writer
-        String outputFileName = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
-        SSTableImpl ssTableNew = new SSTableImpl(outputFileName);
-        SSTableImpl.SSTableWriter fos = ssTableNew.getWriter();
+            assert ssTable2 != null;
+            assert ssTable1 != null;
+            SSTableImpl.SSTableIterator fis2 = ssTable2.iterator();
+            SSTableImpl.SSTableIterator fis1 = ssTable1.iterator();
 
-        try(fis1; fis2; fos) {
-            KeyValuePair kvp1 = null;
-            KeyValuePair kvp2 = null;
+            // create new sstable and get its writer
+            String outputFileName = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
+            SSTableImpl ssTableNew = new SSTableImpl(outputFileName);
+            SSTableImpl.SSTableWriter fos = ssTableNew.getWriter();
 
-            // both sstable has something to read
-            if (fis1.hasNext() && fis2.hasNext()) {
-                // get next key value pair
-                kvp1 = fis1.next();
-                kvp2 = fis2.next();
+            try (fis1; fis2; fos) {
+                KeyValuePair kvp1 = null;
+                KeyValuePair kvp2 = null;
 
-                while (kvp1 != null && kvp2 != null) {
-                    int cmp = kvp1.key().compareTo(kvp2.key());
-                    // if key1 is lexico smaller then add it to sstable
-                    if (cmp < 0) {
-                        if (!kvp1.isDeleted()) { fos.write(kvp1); }
-                        kvp1 = null;
-                        if (fis1.hasNext()) kvp1 = fis1.next();
-                        else break;
-                    // if key2 is lexico smaller then add it
-                    } else if (cmp > 0) {
-                        if (!kvp2.isDeleted()) { fos.write(kvp2); }
-                        kvp2 = null;
-                        if (fis2.hasNext()) kvp2 = fis2.next();
-                        else break;
-                    // if both key are equal add key1 is not deleted then add key1 to sstable
-                    } else {
-                        if (!kvp1.isDeleted()) { fos.write(kvp1); }
-                        kvp1 = null; kvp2 = null;
-                        if (fis1.hasNext()) kvp1 = fis1.next();
-                        else break;
-                        if (fis2.hasNext()) kvp2 = fis2.next();
-                        else break;
+                // both sstable has something to read
+                if (fis1.hasNext() && fis2.hasNext()) {
+                    // get next key value pair
+                    kvp1 = fis1.next();
+                    kvp2 = fis2.next();
+
+                    while (kvp1 != null && kvp2 != null) {
+                        int cmp = kvp1.key().compareTo(kvp2.key());
+                        // if key1 is lexico smaller then add it to sstable
+                        if (cmp < 0) {
+                            if (!kvp1.isDeleted()) {
+                                fos.write(kvp1);
+                            }
+                            kvp1 = null;
+                            if (fis1.hasNext()) kvp1 = fis1.next();
+                            else break;
+                            // if key2 is lexico smaller then add it
+                        } else if (cmp > 0) {
+                            if (!kvp2.isDeleted()) {
+                                fos.write(kvp2);
+                            }
+                            kvp2 = null;
+                            if (fis2.hasNext()) kvp2 = fis2.next();
+                            else break;
+                            // if both key are equal add key1 is not deleted then add key1 to sstable
+                        } else {
+                            if (!kvp1.isDeleted()) {
+                                fos.write(kvp1);
+                            }
+                            kvp1 = null;
+                            kvp2 = null;
+                            if (fis1.hasNext()) kvp1 = fis1.next();
+                            else break;
+                            if (fis2.hasNext()) kvp2 = fis2.next();
+                            else break;
+                        }
                     }
+                }
+
+                while (kvp2 != null) {
+                    if (!kvp2.isDeleted()) fos.write(kvp2);
+                    if (fis2.hasNext()) kvp2 = fis2.next();
+                    else break;
+                }
+
+                while (kvp1 != null) {
+                    if (!kvp1.isDeleted()) fos.write(kvp1);
+                    if (fis1.hasNext()) kvp1 = fis1.next();
+                    else break;
                 }
             }
 
-            while (kvp2 != null) {
-                if (!kvp2.isDeleted()) fos.write(kvp2);
-                if (fis2.hasNext()) kvp2 = fis2.next();
-                else break;
+            synchronized (ssTables) {
+                ssTables.pollLast();
+                ssTables.pollLast();
+                ssTables.addLast(ssTableNew);
             }
 
-            while (kvp1 != null) {
-                if (!kvp1.isDeleted()) fos.write(kvp1);
-                if (fis1.hasNext()) kvp1 = fis1.next();
-                else break;
-            }
+            Files.delete(Path.of(ssTable1.getFileName()));
+            Files.delete(Path.of(ssTable2.getFileName()));
+        }catch (Exception e) {
+            log.error("error while compaction",e);
         }
 
-        Files.delete(Path.of(ssTable1.getFileName()));
-        Files.delete(Path.of(ssTable2.getFileName()));
-
-        ssTables.addLast(ssTableNew);
     }
 }

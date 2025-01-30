@@ -2,6 +2,8 @@ package graveldb;
 
 import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.lsmtree.LSMTree;
+import graveldb.parser.Request;
+import graveldb.wal.WalRecovery;
 import graveldb.wal.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -14,19 +16,17 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.util.Iterator;
 import java.util.List;
 
 public class GravelServer {
     private final int port;
     private final KeyValueStore store;
-    private final WriteAheadLog wal;
     private static final Logger logger = LoggerFactory.getLogger(GravelServer.class);
-
 
     public GravelServer(int port) throws IOException {
         this.port = port;
-        this.wal = new WriteAheadLog(WAL_FILE);
-        this.store = new LSMTree(this.wal);
+        this.store = new LSMTree();
     }
 
     public void start() throws InterruptedException {
@@ -40,7 +40,7 @@ public class GravelServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(new RedisServerHandler(store, wal));
+                            ch.pipeline().addLast(new RedisServerHandler(store));
                         }
                     });
 
@@ -66,13 +66,12 @@ public class GravelServer {
     }
 
     private void recover() throws IOException {
-        List<String> entries = wal.readAll();
-        for (String entry : entries) {
-            String[] parts = entry.split(" ");
-            if (parts[0].equals("SET")) {
-                store.put(parts[1], parts[2]);
-            } else if (parts[0].equals("DEL")) {
-                store.delete(parts[1]);
+        WalRecovery walRecovery = new WalRecovery();
+        for (Request request : walRecovery) {
+            switch (request.command()) {
+                case SET -> store.put(request.key(), request.value());
+                case DEL -> store.delete(request.key());
+                default -> logger.error("invalid command");
             }
         }
         logger.info("Recovery complete.");
