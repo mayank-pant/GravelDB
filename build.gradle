@@ -1,6 +1,7 @@
 plugins {
     id 'java'
-    id 'me.champeau.jmh' version '0.6.8'
+    id 'me.champeau.jmh' version '0.7.0'
+    id 'application'
 }
 
 group = 'GravelDB'
@@ -29,6 +30,10 @@ dependencies {
 
 }
 
+application {
+    mainClass = "graveldb.Main"  // Replace with your main class
+}
+
 jmh {
     fork = 1
     warmupIterations = 3
@@ -37,6 +42,7 @@ jmh {
     jmhTimeout = '15s'
     jmhVersion = '1.37'
     resultFormat = 'JSON'
+    profilers = ['gc', 'locks', 'classloader', 'perf', 'perfnorm', 'async', 'xperf']
 }
 
 test {

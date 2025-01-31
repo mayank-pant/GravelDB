@@ -105,7 +105,7 @@ public class LSMTree implements KeyValueStore {
 
             if (toBeFlushedMemtable == null) return;
 
-            log.info("started flushing memtable");
+            // log.info("started flushing memtable");
 
             String ssTableFilePath = DATA_DIR + UUID.randomUUID() + FILE_POSTFIX;
 
@@ -135,41 +135,45 @@ public class LSMTree implements KeyValueStore {
     }
 
     public String getFromSstable(String targetKey) {
-        for (SSTableImpl sstable: ssTables) {
-            try (SSTableImpl.SSTableIterator itr = sstable.iterator()) {
-                while (itr.hasNext()) {
-                    KeyValuePair kvp = itr.next();
-                    if (kvp.key().equals(targetKey)) {
-                        return kvp.value().isEmpty() ? null : kvp.value();
+        synchronized (ssTables) {
+            for (SSTableImpl sstable: ssTables) {
+                try (SSTableImpl.SSTableIterator itr = sstable.iterator()) {
+                    while (itr.hasNext()) {
+                        KeyValuePair kvp = itr.next();
+                        if (kvp.key().equals(targetKey)) {
+                            return kvp.value().isEmpty() ? null : kvp.value();
+                        }
                     }
+                } catch (IOException e) {
+                    log.error("error reading file",e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (IOException e) {
-                log.error("error reading file",e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
+            return null;
         }
-        return null;
     }
 
     public void compaction() {
         try {
             if (ssTables.size() < 2) return;
 
-            log.info("started compacting sstables");
+            // log.info("started compacting sstables");
 
             // get sstable to compact and there readers / iterator
             SSTableImpl ssTable2 = null;
             SSTableImpl ssTable1 = null;
             int count = 0;
-            for (Iterator<SSTableImpl> it = ssTables.descendingIterator(); it.hasNext(); ) {
-                SSTableImpl curSstable = it.next();
-                if (count == 0) ssTable2 = curSstable;
-                if (count == 1) {
-                    ssTable1 = curSstable;
-                    break;
+            synchronized (ssTables) {
+                for (Iterator<SSTableImpl> it = ssTables.descendingIterator(); it.hasNext(); ) {
+                    SSTableImpl curSstable = it.next();
+                    if (count == 0) ssTable2 = curSstable;
+                    if (count == 1) {
+                        ssTable1 = curSstable;
+                        break;
+                    }
+                    count++;
                 }
-                count++;
             }
 
             assert ssTable2 != null;
@@ -250,5 +254,10 @@ public class LSMTree implements KeyValueStore {
             log.error("error while compaction",e);
         }
 
+    }
+
+    public void stop() {
+        memtableFlusher.shutdownNow();
+        tableCompactor.shutdownNow();
     }
 }
