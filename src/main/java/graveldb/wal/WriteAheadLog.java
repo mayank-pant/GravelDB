@@ -73,19 +73,17 @@ public class WriteAheadLog implements Iterable<Request> {
 
         @Override
         public Request next() {
-            while (iterator.hasNext()) {
-                String[] parts = iterator.next().split(" ");
-                Command command = Command.valueOf(parts[0]);
-                switch (command) {
-                    case Command.SET -> {
-                        return new Request(command, parts[1], parts[2]);
-                    }
-                    case Command.DEL -> {
-                        return new Request(command, parts[1], null);
-                    }
-                    default -> {
-                        return null;
-                    }
+            String[] parts = iterator.next().split(" ");
+            Command command = Command.valueOf(parts[0]);
+            switch (command) {
+                case SET -> {
+                    return new Request(command, parts[1], parts[2]);
+                }
+                case DEL -> {
+                    return new Request(command, parts[1], null);
+                }
+                default -> {
+                    return null;
                 }
             }
         }

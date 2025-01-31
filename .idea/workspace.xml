@@ -6,12 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="20923986-f42b-48f3-9acb-308e1cdbfef4" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/jmh/java/datastore/LSMTreeAddBenchmark.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/jmh/java/datastore/LSMTreeAddBenchmark.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/GravelServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/GravelServer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/RedisServerHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/RedisServerHandler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/memtable/ConcurrentSkipListMemtable.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/sstable/SSTableImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/sstable/SSTableImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/wal/WalRecovery.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/wal/WalRecovery.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/graveldb/wal/WriteAheadLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/graveldb/wal/WriteAheadLog.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -71,7 +70,7 @@
   "keyToString": {
     "Application.Main.executor": "Run",
     "Gradle.Download Sources.executor": "Run",
-    "Gradle.GravelDB [:graveldb.Main.main()].executor": "Run",
+    "Gradle.GravelDB [:graveldb.Main.main()].executor": "Debug",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "testing-jmh",
     "kotlin-language-version-configured": "true",
@@ -139,6 +138,11 @@
           <url>file://$PROJECT_DIR$/src/main/java/graveldb/datastore/lsmtree/LSMTree.java</url>
           <line>107</line>
           <option name="timeStamp" value="28" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/graveldb/GravelServer.java</url>
+          <line>69</line>
+          <option name="timeStamp" value="40" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

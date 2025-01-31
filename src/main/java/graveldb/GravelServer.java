@@ -74,6 +74,7 @@ public class GravelServer {
                 default -> logger.error("invalid command");
             }
         }
+        walRecovery.deleteFiles();
         logger.info("Recovery complete.");
     }
 }

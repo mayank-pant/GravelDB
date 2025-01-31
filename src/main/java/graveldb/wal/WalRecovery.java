@@ -38,14 +38,25 @@ public class WalRecovery implements Iterable<Request> {
 
         Arrays.sort(files, Comparator.comparingLong(File::lastModified));
 
-        for (File f : files){
-            walFiles.addFirst(new WriteAheadLog(WAL_DIR + f.getName()));
+        for (int i=0; i<files.length-1; i++) {
+            walFiles.addLast(new WriteAheadLog(WAL_DIR + files[i].getName()));
         }
     }
 
     @Override
     public Iterator<Request> iterator() {
         return new WalFilesIterator();
+    }
+
+    public void deleteFiles() throws IOException {
+        boolean skipFirst = true;
+        for (Iterator<WriteAheadLog> it = walFiles.descendingIterator(); it.hasNext(); ) {
+            if (skipFirst) {
+                skipFirst = false;
+                continue;
+            }
+            it.next().delete();
+        }
     }
 
     public class WalFilesIterator implements Iterator<Request> {
@@ -55,6 +66,7 @@ public class WalRecovery implements Iterable<Request> {
 
         public WalFilesIterator() {
             this.walIteratorIterator = walFiles.iterator();
+            this.curWalItr = null;
         }
 
         @Override
@@ -62,7 +74,7 @@ public class WalRecovery implements Iterable<Request> {
             if (curWalItr == null) {
                 if (walIteratorIterator.hasNext()) {
                     curWalItr = walIteratorIterator.next().iterator();
-                    return true;
+                    return curWalItr.hasNext();
                 } else return false;
             } else {
                 if (curWalItr.hasNext()) {
@@ -70,7 +82,7 @@ public class WalRecovery implements Iterable<Request> {
                 } else {
                     if (walIteratorIterator.hasNext()) {
                         curWalItr = walIteratorIterator.next().iterator();
-                        return true;
+                        return curWalItr.hasNext();
                     } else return false;
                 }
             }
