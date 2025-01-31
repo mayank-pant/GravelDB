@@ -18,7 +18,7 @@ out/
 !**/src/test/**/out/
 *ssfile.data
 dbdata
-.idea
+.idea/
 waldata/
 
 ### Eclipse ###
