@@ -1,19 +1,13 @@
-package graveldb.datastore.lsmtree.sstable;
+package graveldb.datastore.sstable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
-import graveldb.datastore.lsmtree.memtable.Memtable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Objects;
 
 public class SSTableImpl implements SSTable {
 
@@ -21,15 +15,27 @@ public class SSTableImpl implements SSTable {
 
     private final String fileName;
 
+
     public SSTableImpl(String fileName) throws IOException {
         this.fileName = fileName;
-        if (!Files.exists(Path.of(fileName))) Files.createFile(Path.of(fileName));
+        if (!Files.exists(Path.of(fileName))) {
+            Files.createDirectories(Path.of(fileName).getParent());
+            Files.createFile(Path.of(fileName));
+        }
     }
 
     @Override
     public SSTableIterator iterator() {
         try {
             return new SSTableIterator();
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException("file not found exception");
+        }
+    }
+
+    public SSTableIterator iterator(int offset) throws Exception{
+        try {
+            return new SSTableIterator(offset);
         } catch (FileNotFoundException e) {
             throw new RuntimeException("file not found exception");
         }
@@ -43,14 +49,18 @@ public class SSTableImpl implements SSTable {
 
     public class SSTableIterator implements Iterator<KeyValuePair>, AutoCloseable {
 
-        BufferedInputStream fis;
+        RandomAccessFile fis;
 
-        public SSTableIterator() throws FileNotFoundException { fis = new BufferedInputStream(new FileInputStream(fileName)); }
+        public SSTableIterator() throws FileNotFoundException { fis = new RandomAccessFile(fileName, "r"); }
+        public SSTableIterator(int offset) throws IOException {
+            fis = new RandomAccessFile(fileName, "r");
+            fis.seek(offset);
+        }
 
         @Override
         public boolean hasNext() {
             try {
-                return fis.available() > 0;
+                return fis.getFilePointer() < fis.length();
             } catch (IOException e) {
                 log.error("error while checking for available bytes to read from sstable {}", fileName);
                 throw new RuntimeException(e);

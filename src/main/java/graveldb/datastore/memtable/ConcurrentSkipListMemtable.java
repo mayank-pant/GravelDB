@@ -1,8 +1,7 @@
-package graveldb.datastore.lsmtree.memtable;
+package graveldb.datastore.memtable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
 
-import java.io.File;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -23,8 +22,6 @@ public class ConcurrentSkipListMemtable implements Memtable {
         this.memtableStatus = MemtableStatus.ACTIVE;
         this.size = 0;
         this.walFile = String.valueOf(UUID.randomUUID());
-
-
     }
 
     @Override
@@ -34,6 +31,11 @@ public class ConcurrentSkipListMemtable implements Memtable {
 
     @Override
     public MemtableStatus getMemtableStatus() { return memtableStatus; }
+
+//    @Override
+//    public boolean canFlush() {
+//        return size > FLUSH_THRESHOLD;
+//    }
 
     @Override
     public boolean canFlush() {

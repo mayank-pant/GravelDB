@@ -1,7 +1,5 @@
 package graveldb.wal;
 
-import graveldb.datastore.lsmtree.KeyValuePair;
-import graveldb.datastore.lsmtree.sstable.SSTableImpl;
 import graveldb.parser.Command;
 import graveldb.parser.Request;
 import org.slf4j.Logger;
@@ -11,7 +9,6 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public class WriteAheadLog implements Iterable<Request> {

@@ -28,6 +28,10 @@ dependencies {
     testImplementation group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.37'
     annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
 
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    implementation group: 'com.google.guava', name: 'guava', version: '33.4.0-jre'
+
+
 }
 
 application {
@@ -42,7 +46,8 @@ jmh {
     jmhTimeout = '15s'
     jmhVersion = '1.37'
     resultFormat = 'JSON'
-    profilers = ['gc', 'locks', 'classloader', 'perf', 'perfnorm', 'async', 'xperf']
+    jvmArgs = ['-XX:StartFlightRecording=filename=./jmh.jfr,duration=30s']
+    //profilers = ['gc', 'xperf']
 }
 
 test {
