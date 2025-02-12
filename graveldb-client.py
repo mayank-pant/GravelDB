@@ -50,5 +50,5 @@ class RedisCLI:
         self.client.close()
 
 if __name__ == "__main__":
-    cli = RedisCLI(host="localhost", port=6379)
+    cli = RedisCLI(host="localhost", port=6371)
     cli.run()

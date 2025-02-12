@@ -49,7 +49,10 @@ public class BloomFilterImpl {
 
         public void write(String key) {
             for (int i=0; i<HASH_FUNCTIONS; i++) {
-                int setBit = (Hashing.murmur3_128().hashBytes(key.getBytes()).asInt() + i * Hashing.sipHash24().hashBytes(key.getBytes()).asInt()) % BLOOM_BUCKET;
+                int setBit = (Hashing.murmur3_128().hashBytes(key.getBytes()).asInt() + i * Hashing.sipHash24().hashBytes(key.getBytes()).asInt()) % (BLOOM_BUCKET-1);
+                if (setBit < 0) {
+                    setBit += setBit*-2;  // Ensure it's non-negative
+                }
                 bitArray.set(setBit);
             }
         }

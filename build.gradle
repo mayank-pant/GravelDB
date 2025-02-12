@@ -53,3 +53,9 @@ jmh {
 test {
     useJUnitPlatform()
 }
+
+tasks.register('printRuntimeClasspath') {
+    doLast {
+        configurations.runtimeClasspath.each { println it }
+    }
+}

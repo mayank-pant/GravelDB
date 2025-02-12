@@ -99,13 +99,13 @@ public class LSMTree implements KeyValueStore {
             // TODO: if bloom and sparse file not found then attempt to recreate or else throw DBInvalidState Runtime exception
             String ssTableFileName = Arrays.stream(ssTableFiles)
                     .filter(file -> file.getName().contains(SSTABLE_FILE_POSTFIX)).findAny()
-                    .orElseThrow(() -> new RuntimeException("sstable not found")).getName();
+                    .orElseThrow(() -> new RuntimeException("sstable not found")).getAbsolutePath();
             String bloomFilterFileName = Arrays.stream(ssTableFiles)
                     .filter(file -> file.getName().contains(BLOOM_FILTER_FILE_POSTFIX)).findAny()
-                    .orElseThrow(() -> new RuntimeException("bloom filter not found")).getName();
+                    .orElseThrow(() -> new RuntimeException("bloom filter not found")).getAbsolutePath();
             String sparseIndexFileName = Arrays.stream(ssTableFiles)
                     .filter(file -> file.getName().contains(SPARSE_INDEX_FILE_POSTFIX)).findAny()
-                    .orElseThrow(() -> new RuntimeException("sparse index not found")).getName();
+                    .orElseThrow(() -> new RuntimeException("sparse index not found")).getAbsolutePath();
             Pair<BloomFilterImpl, SparseIndexImpl> bloomAndSparse = new Pair<>(
                     new BloomFilterImpl(bloomFilterFileName),
                     new SparseIndexImpl(sparseIndexFileName)
@@ -184,16 +184,16 @@ public class LSMTree implements KeyValueStore {
 
             int curKeyCount = 0;
             int offset = 0;
-            try (ssTableWriter) {
+            try (ssTableWriter; sparseIndexWriter; bloomFilterWriter) {
                 while (memtableIterator.hasNext()) {
-                    curKeyCount++;
                     KeyValuePair kvp = memtableIterator.next();
+                    if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(kvp.key(), offset);
+                    ssTableWriter.write(kvp);
+                    bloomFilterWriter.write(kvp.key());
+                    curKeyCount++;
                     offset += 8;
                     offset += kvp.key().getBytes().length;
                     offset += kvp.value().getBytes().length;
-                    ssTableWriter.write(kvp);
-                    bloomFilterWriter.write(kvp.key());
-                    if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp.key(), offset);
                 }
             }
 
@@ -220,13 +220,15 @@ public class LSMTree implements KeyValueStore {
                 Pair<BloomFilterImpl, SparseIndexImpl> pair = ssTableToBloomAndSparse.get(sstable);
                 if (!pair.ele1().check(targetKey)) continue;
 
-                List<Pair<String, Integer>> sparseTable;
+                List<Pair<String, Integer>> sparseTable = null;
                 try {
                     sparseTable = pair.ele2().getSparseIndexTable();
                 } catch (IOException e) {
                     log.error("error reading sstable");
                     throw new RuntimeException("erro reading sstablee");
                 }
+
+                log.info(sparseTable.toString());
 
 
                 int offset = -1;
@@ -237,9 +239,15 @@ public class LSMTree implements KeyValueStore {
                     Pair<String, Integer> kao = sparseTable.get(m);
                     int cmp = kao.ele1().compareTo(targetKey);
 
-                    if (cmp == 0) { offset = kao.ele2(); break; }
-                    else if (cmp < 0) l = m + 1;
-                    else r = m - 1;
+                    if (cmp == 0) {
+                        offset = kao.ele2(); // Exact match
+                        break;
+                    } else if (cmp < 0) {
+                        offset = kao.ele2(); // Update closest smaller key
+                        l = m + 1;
+                    } else {
+                        r = m - 1;
+                    }
                 }
 
                 if (offset == -1) continue;
@@ -319,10 +327,10 @@ public class LSMTree implements KeyValueStore {
                         // if key1 is lexico smaller then add it to sstable
                         if (cmp < 0) {
                             if (!kvp1.isDeleted()) {
-                                curKeyCount++;
+                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(kvp1.key(), offset);
                                 ssTableWriter.write(kvp1);
-                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp1.key(), offset);
                                 bloomFilterWriter.write(kvp1.key());
+                                curKeyCount++;
                                 offset += 8;
                                 offset += kvp1.key().getBytes().length;
                                 offset += kvp1.value().getBytes().length;
@@ -333,10 +341,10 @@ public class LSMTree implements KeyValueStore {
                             // if key2 is lexico smaller then add it
                         } else if (cmp > 0) {
                             if (!kvp2.isDeleted()) {
-                                curKeyCount++;
+                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(kvp2.key(), offset);
                                 ssTableWriter.write(kvp2);
-                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp2.key(), offset);
                                 bloomFilterWriter.write(kvp2.key());
+                                curKeyCount++;
                                 offset += 8;
                                 offset += kvp2.key().getBytes().length;
                                 offset += kvp2.value().getBytes().length;
@@ -347,10 +355,10 @@ public class LSMTree implements KeyValueStore {
                             // if both key are equal add key1 is not deleted then add key1 to sstable
                         } else {
                             if (!kvp1.isDeleted()) {
-                                curKeyCount++;
+                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(kvp1.key(), offset);
                                 ssTableWriter.write(kvp1);
-                                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp1.key(), offset);
                                 bloomFilterWriter.write(kvp1.key());
+                                curKeyCount++;
                                 offset += 8;
                                 offset += kvp1.key().getBytes().length;
                                 offset += kvp1.value().getBytes().length;
@@ -367,10 +375,10 @@ public class LSMTree implements KeyValueStore {
 
                 while (kvp2 != null) {
                     if (!kvp2.isDeleted()) {
-                        curKeyCount++;
+                        if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(kvp2.key(), offset);
                         ssTableWriter.write(kvp2);
-                        if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp2.key(), offset);
                         bloomFilterWriter.write(kvp2.key());
+                        curKeyCount++;
                         offset += 8;
                         offset += kvp2.key().getBytes().length;
                         offset += kvp2.value().getBytes().length;
@@ -381,10 +389,10 @@ public class LSMTree implements KeyValueStore {
 
                 while (kvp1 != null) {
                     if (!kvp1.isDeleted()) {
-                        ssTableWriter.write(kvp1);
-                        curKeyCount++;
                         if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0) sparseIndexWriter.write(kvp1.key(), offset);
+                        ssTableWriter.write(kvp1);
                         bloomFilterWriter.write(kvp1.key());
+                        curKeyCount++;
                         offset += 8;
                         offset += kvp1.key().getBytes().length;
                         offset += kvp1.value().getBytes().length;
@@ -398,13 +406,32 @@ public class LSMTree implements KeyValueStore {
                 ssTables.pollLast();
                 ssTables.pollLast();
                 ssTables.addLast(ssTableNew);
+                ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
             }
 
-            Files.delete(Path.of(ssTable1.getFileName()));
-            Files.delete(Path.of(ssTable2.getFileName()));
-        }catch (Exception e) {
+            ssTableToBloomAndSparse.remove(ssTable1);
+            ssTableToBloomAndSparse.remove(ssTable2);
+
+            boolean filesDeleted = true;
+            deleteSsTableFiles(ssTable1.getFileName());
+            deleteSsTableFiles(ssTable2.getFileName());
+            log.info("stables after compaction deleted status {}", filesDeleted);
+
+        } catch (Exception e) {
             log.error("error while compaction",e);
         }
+    }
+
+    private boolean deleteSsTableFiles(String fileName) {
+        boolean fileDeleted = true;
+        File directory = new File(Path.of(fileName).getParent().toString());
+        File[] files = directory.listFiles();
+        if (files == null) return true;
+        for (File file : files) {
+            fileDeleted &= file.delete();
+        }
+        fileDeleted &= directory.delete();
+        return fileDeleted;
     }
 
     public void stop() {

@@ -60,7 +60,7 @@ public class SparseIndexImpl {
         }
 
         public void write(String key, int offset) throws IOException {
-            bos.write(key.getBytes().length);
+            bos.write(intToByteArray(key.getBytes().length));
             bos.write(key.getBytes());
             bos.write(intToByteArray(offset));
         }
