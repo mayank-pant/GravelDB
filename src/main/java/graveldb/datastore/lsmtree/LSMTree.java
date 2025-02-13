@@ -143,7 +143,7 @@ public class LSMTree implements KeyValueStore {
     }
 
     @Override
-    public String get(String key) {
+    public String get(String key) throws IOException {
         String value = null;
         synchronized (memTableObject) {
             value = mutMemtable.get(key);
@@ -214,7 +214,7 @@ public class LSMTree implements KeyValueStore {
         }
     }
 
-    public String getFromSstable(String targetKey) {
+    public String getFromSstable(String targetKey) throws IOException {
         synchronized (ssTables) {
             for (SSTableImpl sstable: ssTables) {
                 Pair<BloomFilterImpl, SparseIndexImpl> pair = ssTableToBloomAndSparse.get(sstable);

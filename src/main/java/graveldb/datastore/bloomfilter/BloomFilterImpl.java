@@ -3,10 +3,7 @@ package graveldb.datastore.bloomfilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedOutputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.BitSet;
@@ -19,6 +16,7 @@ public class BloomFilterImpl {
 
     private static final int HASH_FUNCTIONS = 7;
     private static final int BLOOM_BUCKET = 10000;
+    private BitSet bitArray = null;
 
     private final String fileName;
 
@@ -33,9 +31,30 @@ public class BloomFilterImpl {
 
     public BloomFilterWriter getWriter() throws FileNotFoundException { return new BloomFilterImpl.BloomFilterWriter(); }
 
-    public boolean check(String key) {
-        // if bitset array is empty then fetch the
+    public boolean check(String key) throws IOException {
+        for (int i=0; i<HASH_FUNCTIONS; i++) {
+            int setBit = getKeyHashValue(key, i) % BLOOM_BUCKET;
+            log.info("get mode - key {}, index {}", key, setBit);
+            if (setBit < 0) setBit += setBit*-2;  // Ensure it's non-negative
+            if (!checkSetBit(setBit)) return false;
+        }
         return true;
+    }
+
+    private boolean checkSetBit(int setBit) throws IOException {
+        if (bitArray == null) generateBitArray();
+        return bitArray.get(setBit);
+    }
+
+    private void generateBitArray() throws IOException {
+        byte[] byteArray = new byte[(BLOOM_BUCKET + 7) / 8];
+        RandomAccessFile fis = new RandomAccessFile(fileName, "r");
+        try (fis) {
+            int res = fis.read(byteArray);
+            if (res != -1) bitArray = BitSet.valueOf(byteArray);
+        } catch (IOException e) {
+            throw new IOException(e);
+        }
     }
 
     public class BloomFilterWriter implements AutoCloseable {
@@ -49,10 +68,9 @@ public class BloomFilterImpl {
 
         public void write(String key) {
             for (int i=0; i<HASH_FUNCTIONS; i++) {
-                int setBit = (Hashing.murmur3_128().hashBytes(key.getBytes()).asInt() + i * Hashing.sipHash24().hashBytes(key.getBytes()).asInt()) % (BLOOM_BUCKET-1);
-                if (setBit < 0) {
-                    setBit += setBit*-2;  // Ensure it's non-negative
-                }
+                int setBit = getKeyHashValue(key, i) % BLOOM_BUCKET;
+                log.info("put mode - key {}, index {}", key, setBit);
+                if (setBit < 0) setBit += setBit*-2;  // Ensure it's non-negative
                 bitArray.set(setBit);
             }
         }
@@ -63,6 +81,10 @@ public class BloomFilterImpl {
             bos.flush();
             bos.close();
         }
+    }
+
+    public int getKeyHashValue(String key, int salt) {
+        return Hashing.murmur3_128().hashBytes(key.getBytes()).asInt() + salt * Hashing.sipHash24().hashBytes(key.getBytes()).asInt();
     }
 
 }
