@@ -16,26 +16,25 @@ public class BloomFilterImpl {
 
     private static final int HASH_FUNCTIONS = 7;
     private static final int BLOOM_BUCKET = 10000;
-    private BitSet bitArray = null;
+    private BitSet bitArray;
 
     private final String fileName;
 
-
     public BloomFilterImpl(String fileName) throws IOException {
         this.fileName = fileName;
-        if (!Files.exists(Path.of(fileName))) {
-            Files.createDirectories(Path.of(fileName).getParent());
-            Files.createFile(Path.of(fileName));
-        }
+        this.bitArray = new BitSet(BLOOM_BUCKET);
+        Path path = Path.of(fileName);
+        if (!Files.exists(path)) {
+            Files.createDirectories(path.getParent());
+            Files.createFile(path);
+        } else generateBitArray();
     }
 
     public BloomFilterWriter getWriter() throws FileNotFoundException { return new BloomFilterImpl.BloomFilterWriter(); }
 
     public boolean check(String key) throws IOException {
         for (int i=0; i<HASH_FUNCTIONS; i++) {
-            int setBit = getKeyHashValue(key, i) % BLOOM_BUCKET;
-            log.info("get mode - key {}, index {}", key, setBit);
-            if (setBit < 0) setBit += setBit*-2;  // Ensure it's non-negative
+            int setBit = Math.abs(getKeyHashValue(key, i) % BLOOM_BUCKET);
             if (!checkSetBit(setBit)) return false;
         }
         return true;
@@ -51,7 +50,8 @@ public class BloomFilterImpl {
         RandomAccessFile fis = new RandomAccessFile(fileName, "r");
         try (fis) {
             int res = fis.read(byteArray);
-            if (res != -1) bitArray = BitSet.valueOf(byteArray);
+            if (res >= 0) bitArray = BitSet.valueOf(byteArray);
+            else bitArray = new BitSet(BLOOM_BUCKET);
         } catch (IOException e) {
             throw new IOException(e);
         }
@@ -60,7 +60,6 @@ public class BloomFilterImpl {
     public class BloomFilterWriter implements AutoCloseable {
 
         BufferedOutputStream bos;
-        BitSet bitArray = new BitSet(BLOOM_BUCKET);
 
         public BloomFilterWriter() throws FileNotFoundException {
             bos = new BufferedOutputStream(new FileOutputStream(fileName));
@@ -68,9 +67,7 @@ public class BloomFilterImpl {
 
         public void write(String key) {
             for (int i=0; i<HASH_FUNCTIONS; i++) {
-                int setBit = getKeyHashValue(key, i) % BLOOM_BUCKET;
-                log.info("put mode - key {}, index {}", key, setBit);
-                if (setBit < 0) setBit += setBit*-2;  // Ensure it's non-negative
+                int setBit = Math.abs(getKeyHashValue(key, i) % BLOOM_BUCKET);
                 bitArray.set(setBit);
             }
         }
@@ -80,6 +77,7 @@ public class BloomFilterImpl {
             bos.write(bitArray.toByteArray());
             bos.flush();
             bos.close();
+            log.debug("persisted bloom filter file {}",fileName);
         }
     }
 
