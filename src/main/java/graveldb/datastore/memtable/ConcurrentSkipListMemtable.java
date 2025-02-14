@@ -39,7 +39,7 @@ public class ConcurrentSkipListMemtable implements Memtable {
 
     @Override
     public boolean canFlush() {
-        return concurrentMap.size() > 10;
+        return size > FLUSH_THRESHOLD;
     }
 
     @Override

@@ -15,6 +15,9 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.0.3'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.0.3'
+
     implementation 'io.projectreactor:reactor-core:3.5.0'
     implementation 'io.netty:netty-all:4.1.97.Final'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
@@ -30,8 +33,6 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.guava/guava
     implementation group: 'com.google.guava', name: 'guava', version: '33.4.0-jre'
-
-
 }
 
 application {
@@ -51,7 +52,16 @@ jmh {
 }
 
 test {
+    // Enable JUnit 5 (Gradle 4.6+).
     useJUnitPlatform()
+
+    // Always run tests, even when nothing changed.
+    dependsOn 'cleanTest'
+
+    // Show test results.
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
 }
 
 tasks.register('printRuntimeClasspath') {
