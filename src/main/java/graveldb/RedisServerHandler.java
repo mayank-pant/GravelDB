@@ -17,13 +17,11 @@ import java.util.List;
 public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private final KeyValueStore store;
-    private final WriteAheadLog wal;
     private final Lexer lexer = new Lexer();
     private final Parser parser = new Parser();
 
-    public RedisServerHandler(KeyValueStore store, WriteAheadLog wal) {
+    public RedisServerHandler(KeyValueStore store) {
         this.store = store;
-        this. wal = wal;
     }
 
     @Override
@@ -53,21 +51,20 @@ public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
     private String processCommand(Request request) throws IllegalArgumentException {
         try {
-            switch (request.command()) {
-                case Command.SET:
-                    wal.append("SET", request.key(), request.value());
+            return switch (request.command()) {
+                case Command.SET -> {
                     store.put(request.key(), request.value());
-                    return "+OK\r\n";
-                case Command.GET:
+                    yield "+OK\r\n";
+                }
+                case Command.GET -> {
                     String value = store.get(request.key());
-                    return value == null ? "$-1\r\n" : "$" + value.length() + "\r\n" + value + "\r\n";
-                case Command.DEL:
-                    wal.append("DEL", request.key(), null);
+                    yield value == null ? "$-1\r\n" : "$" + value.length() + "\r\n" + value + "\r\n";
+                }
+                case Command.DEL -> {
                     store.delete(request.key());
-                    return ":OK\r\n";
-                default:
-                    return "-ERR Unknown command\r\n";
-            }
+                    yield ":OK\r\n";
+                }
+            };
         } catch (IOException e) {
             return "-ERR Failed to process command\r\n";
         }

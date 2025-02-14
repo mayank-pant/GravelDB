@@ -2,6 +2,8 @@ package graveldb;
 
 import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.lsmtree.LSMTree;
+import graveldb.parser.Request;
+import graveldb.wal.WalRecovery;
 import graveldb.wal.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
@@ -14,28 +16,22 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.util.Iterator;
 import java.util.List;
 
 public class GravelServer {
     private final int port;
     private final KeyValueStore store;
-    private final WriteAheadLog wal;
     private static final Logger logger = LoggerFactory.getLogger(GravelServer.class);
-    private static final String WAL_FILE = "./wal.txt";
 
     public GravelServer(int port) throws IOException {
         this.port = port;
-        this.wal = new WriteAheadLog(WAL_FILE);
-        this.store = new LSMTree(this.wal);
+        this.store = new LSMTree();
     }
 
     public void start() throws InterruptedException {
         final EventLoopGroup bossGroup = new NioEventLoopGroup();
         final EventLoopGroup workerGroup = new NioEventLoopGroup();
-
-        if (!isPortAvailable(port)) {
-            throw new IllegalStateException("Port " + port + " is already in use.");
-        }
 
         try (bossGroup; workerGroup) {
             ServerBootstrap bootstrap = new ServerBootstrap();
@@ -44,7 +40,7 @@ public class GravelServer {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel ch) {
-                            ch.pipeline().addLast(new RedisServerHandler(store, wal));
+                            ch.pipeline().addLast(new RedisServerHandler(store));
                         }
                     });
 
@@ -69,25 +65,16 @@ public class GravelServer {
         }
     }
 
-    private boolean isPortAvailable(int port) {
-        try (ServerSocket serverSocket = new ServerSocket()) {
-            serverSocket.bind(new InetSocketAddress(port));
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
     private void recover() throws IOException {
-        List<String> entries = wal.readAll();
-        for (String entry : entries) {
-            String[] parts = entry.split(" ");
-            if (parts[0].equals("SET")) {
-                store.put(parts[1], parts[2]);
-            } else if (parts[0].equals("DEL")) {
-                store.delete(parts[1]);
+        WalRecovery walRecovery = new WalRecovery();
+        for (Request request : walRecovery) {
+            switch (request.command()) {
+                case SET -> store.put(request.key(), request.value());
+                case DEL -> store.delete(request.key());
+                default -> logger.error("invalid command");
             }
         }
+        walRecovery.deleteFiles();
         logger.info("Recovery complete.");
     }
 }

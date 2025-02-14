@@ -1,9 +1,10 @@
-package graveldb.datastore.lsmtree.memtable;
+package graveldb.datastore.memtable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -11,23 +12,41 @@ public class ConcurrentSkipListMemtable implements Memtable {
 
     private final ConcurrentMap<String, String> concurrentMap;
     private MemtableStatus memtableStatus;
+    private int size;
+    private final static int FLUSH_THRESHOLD = 1024 * 4 ;
+    private final String walFile;
+
 
     public ConcurrentSkipListMemtable() {
         this.concurrentMap = new ConcurrentSkipListMap<>();
         this.memtableStatus = MemtableStatus.ACTIVE;
+        this.size = 0;
+        this.walFile = String.valueOf(UUID.randomUUID());
     }
 
     @Override
-    public void updateMemtableStatus(MemtableStatus memtableStatus) {this.memtableStatus = memtableStatus;}
+    public void updateMemtableStatus(MemtableStatus memtableStatus) {
+        this.memtableStatus = memtableStatus;
+    }
 
     @Override
-    public MemtableStatus getMemtableStatus() {return memtableStatus;}
+    public MemtableStatus getMemtableStatus() { return memtableStatus; }
+
+//    @Override
+//    public boolean canFlush() {
+//        return size > FLUSH_THRESHOLD;
+//    }
 
     @Override
-    public boolean canFlush() { return concurrentMap.size() > 10; }
+    public boolean canFlush() {
+        return concurrentMap.size() > 10;
+    }
 
     @Override
-    public void put(String key, String value) {concurrentMap.put(key, value);}
+    public void put(String key, String value) {
+        size += key.getBytes().length + value.getBytes().length + 4 + 4;
+        concurrentMap.put(key, value);
+    }
 
     @Override
     public String get(String key) {return concurrentMap.get(key);}

@@ -1,9 +1,8 @@
-package graveldb.datastore.lsmtree.sstable;
+package graveldb.datastore.sstable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
 
 public interface SSTable extends Iterable<KeyValuePair> {
     public String getFileName();

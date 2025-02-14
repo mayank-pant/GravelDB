@@ -36,3 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Using KeyValuePair to communicate across application
 - Enumify the commands SET, GET, DEL for parser
+
+## [0.0.4] - 2025-02-13 - *Major release*
+### Changed
+- File structure change, each sstable will have there separate folder with bloom, sparse file
+- Project structure changed
+- DB recovery on restart, loading already persisted files
+- running on port 6371 to avoid clashes with redis server
+### Added
+- Thread safe implementation with synchronized
+- Complete Bloom filter implementation
+- Google hashing libraries
+- Complete SSTable implementation
+- Several bug fixes in LSM implementation in general
+- Started implementing Benchmarking and testing utility

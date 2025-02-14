@@ -1,9 +1,11 @@
 plugins {
     id 'java'
+    id 'me.champeau.jmh' version '0.7.0'
+    id 'application'
 }
 
 group = 'GravelDB'
-version = '0.0.3'
+version = '0.0.4'
 
 repositories {
     mavenCentral()
@@ -22,8 +24,38 @@ dependencies {
     implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.5.16'
     implementation group: 'ch.qos.logback', name: 'logback-core', version: '1.5.16'
 
+    testImplementation group: 'org.openjdk.jmh', name: 'jmh-core', version: '1.37'
+    testImplementation group: 'org.openjdk.jmh', name: 'jmh-generator-annprocess', version: '1.37'
+    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
+
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    implementation group: 'com.google.guava', name: 'guava', version: '33.4.0-jre'
+
+
+}
+
+application {
+    mainClass = "graveldb.Main"  // Replace with your main class
+}
+
+jmh {
+    fork = 1
+    warmupIterations = 3
+    iterations = 5
+    benchmarkMode = ['thrpt','avg']
+    jmhTimeout = '15s'
+    jmhVersion = '1.37'
+    resultFormat = 'JSON'
+    jvmArgs = ['-XX:StartFlightRecording=filename=./jmh.jfr,duration=30s']
+    //profilers = ['gc', 'xperf']
 }
 
 test {
     useJUnitPlatform()
+}
+
+tasks.register('printRuntimeClasspath') {
+    doLast {
+        configurations.runtimeClasspath.each { println it }
+    }
 }

@@ -1,29 +1,27 @@
-package graveldb.datastore.lsmtree.sstable;
+package graveldb.datastore.sstable;
 
 import graveldb.datastore.lsmtree.KeyValuePair;
-import graveldb.datastore.lsmtree.memtable.Memtable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Objects;
 
 public class SSTableImpl implements SSTable {
 
     private static final Logger log = LoggerFactory.getLogger(SSTableImpl.class);
 
-    private final String FILE_NAME;
+    private final String fileName;
+
 
     public SSTableImpl(String fileName) throws IOException {
-        this.FILE_NAME = fileName;
-        if (!Files.exists(Path.of(fileName))) Files.createFile(Path.of(fileName));
+        this.fileName = fileName;
+        if (!Files.exists(Path.of(fileName))) {
+            Files.createDirectories(Path.of(fileName).getParent());
+            Files.createFile(Path.of(fileName));
+        }
     }
 
     @Override
@@ -35,24 +33,36 @@ public class SSTableImpl implements SSTable {
         }
     }
 
+    public SSTableIterator iterator(int offset) throws Exception{
+        try {
+            return new SSTableIterator(offset);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException("file not found exception");
+        }
+    }
+
     @Override
-    public String getFileName() {return FILE_NAME;}
+    public String getFileName() {return fileName;}
 
     @Override
     public SSTableWriter getWriter() throws FileNotFoundException { return new SSTableWriter(); }
 
     public class SSTableIterator implements Iterator<KeyValuePair>, AutoCloseable {
 
-        BufferedInputStream fis;
+        RandomAccessFile fis;
 
-        public SSTableIterator() throws FileNotFoundException { fis = new BufferedInputStream(new FileInputStream(FILE_NAME)); }
+        public SSTableIterator() throws FileNotFoundException { fis = new RandomAccessFile(fileName, "r"); }
+        public SSTableIterator(int offset) throws IOException {
+            fis = new RandomAccessFile(fileName, "r");
+            fis.seek(offset);
+        }
 
         @Override
         public boolean hasNext() {
             try {
-                return fis.available() > 0;
+                return fis.getFilePointer() < fis.length();
             } catch (IOException e) {
-                log.error("error while checking for available bytes to read from sstable {}",FILE_NAME);
+                log.error("error while checking for available bytes to read from sstable {}", fileName);
                 throw new RuntimeException(e);
             }
         }
@@ -80,7 +90,7 @@ public class SSTableImpl implements SSTable {
                         isDeleted
                 );
             } catch (Exception e) {
-                log.error("error reading the next value in sstable file {}", FILE_NAME);
+                log.error("error reading the next value in sstable file {}", fileName);
                 return null; }
         }
 
@@ -93,7 +103,7 @@ public class SSTableImpl implements SSTable {
         BufferedOutputStream bos;
 
         public SSTableWriter() throws FileNotFoundException {
-            bos = new BufferedOutputStream(new FileOutputStream(FILE_NAME));
+            bos = new BufferedOutputStream(new FileOutputStream(fileName));
         }
 
         public void write(KeyValuePair kvp) throws IOException {

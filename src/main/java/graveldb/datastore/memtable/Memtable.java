@@ -1,4 +1,4 @@
-package graveldb.datastore.lsmtree.memtable;
+package graveldb.datastore.memtable;
 
 import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.lsmtree.KeyValuePair;
