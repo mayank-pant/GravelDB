@@ -1,6 +1,7 @@
 package graveldb.datastore.lsmtree;
 
 import graveldb.datastore.KeyValueStore;
+import graveldb.datastore.compaction.CompactionManager;
 import graveldb.datastore.memtable.ConcurrentSkipListMemtable;
 import graveldb.datastore.memtable.Memtable;
 import graveldb.datastore.memtable.MemtableStatus;
@@ -50,6 +51,8 @@ public class LSMTree implements KeyValueStore {
     ScheduledExecutorService memtableFlusher;
     ScheduledExecutorService tableCompactor;
 
+    CompactionManager cm;
+
     public LSMTree() throws IOException {
         this.mutMemtable = new ConcurrentSkipListMemtable();
         this.immMemtables = new LinkedList<>();
@@ -65,8 +68,10 @@ public class LSMTree implements KeyValueStore {
         memtableFlusher = newSingleThreadScheduledExecutor();
         memtableFlusher.scheduleAtFixedRate(this::flushMemtable, 50, 50, TimeUnit.MILLISECONDS);
 
+        cm = new CompactionManager();
+
         tableCompactor = newSingleThreadScheduledExecutor();
-        tableCompactor.scheduleAtFixedRate(this::compaction, 200, 200, TimeUnit.MILLISECONDS);
+        tableCompactor.scheduleAtFixedRate(cm.checkAndPerformCompaction(), 200, 200, TimeUnit.MILLISECONDS);
     }
 
     private void fillSstableList() throws IOException {
@@ -204,7 +209,8 @@ public class LSMTree implements KeyValueStore {
             ssTableToBloomAndSparse.put(ssTable, new Pair<>(bloomFilter, sparseIndex));
 
             synchronized (ssTables) {
-                ssTables.add(ssTable);
+                cm.addSSTable(ssTable);
+                // ssTables.add(ssTable);
             }
 
             memtableToWalfile.get(toBeFlushedMemtable).delete();
@@ -272,6 +278,10 @@ public class LSMTree implements KeyValueStore {
     public void compaction() {
         try {
             if (ssTables.size() < 2) return;
+
+            // i will have multiple sstables linkedlist each of them having a threshold assigned to them
+            // at each compaction trigger, i will check from the largest threshold linkedlist if the threshold is reached then start compacting
+            // i will continue compacting
 
             // get sstable to compact and there readers / iterator
             SSTableImpl ssTable2 = null;
