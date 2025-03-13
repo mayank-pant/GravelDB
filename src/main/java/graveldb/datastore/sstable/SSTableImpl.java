@@ -33,7 +33,7 @@ public class SSTableImpl implements SSTable {
         }
     }
 
-    public SSTableIterator iterator(int offset) throws Exception{
+    public SSTableIterator iterator(int offset) throws Exception {
         try {
             return new SSTableIterator(offset);
         } catch (FileNotFoundException e) {
@@ -46,6 +46,12 @@ public class SSTableImpl implements SSTable {
 
     @Override
     public SSTableWriter getWriter() throws FileNotFoundException { return new SSTableWriter(); }
+
+    @Override
+    public long getSize() {
+        File directory = new File(Path.of(fileName).getParent().toString());
+        return directory.length();
+    }
 
     public class SSTableIterator implements Iterator<KeyValuePair>, AutoCloseable {
 
