@@ -321,7 +321,7 @@ public class LSMTree implements KeyValueStore {
         int curKeyCount = 0;
         int offset = 0;
 
-        LinkedList<KeyValuePair> curItrVals = new LinkedList<>();
+        List<KeyValuePair> curItrVals = new LinkedList<>();
 
         while (true) {
             KeyValuePair curSmallest = null;
@@ -332,7 +332,7 @@ public class LSMTree implements KeyValueStore {
             // sorted run over the file keys
             for (int i=ssTablesItr.size()-1; i>=0; i--) {
                 if (curItrVals.get(i) == null) {
-                    if (ssTablesItr.get(i).hasNext()) ssTablesItr.get(i).next();
+                    if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
                 } else continue;
 
                 if (curSmallest == null) {
@@ -365,18 +365,15 @@ public class LSMTree implements KeyValueStore {
             }
 
             for (int i : idxToIncr) {
-                if (ssTablesItr.get(i).hasNext()) ssTablesItr.get(i).next();
+                if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
             }
 
             idxToIncr = new HashSet<>();
         }
 
-        synchronized (tieredSSTables) {
-            tier.clear();
-            if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addLast(ssTableNew);
-            else tieredSSTables.get(level+1).addLast(ssTableNew);
-            ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
-        }
+        if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addLast(ssTableNew);
+        else tieredSSTables.get(level+1).addLast(ssTableNew);
+        ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
 
         boolean filesDeleted = true;
         for (SSTableImpl ssTable : tier) {
@@ -384,16 +381,19 @@ public class LSMTree implements KeyValueStore {
             filesDeleted &= deleteSsTableFiles(ssTable.getFileName());
         }
 
+        tier.clear();
+
         log.info("stables after compaction deleted status {}", filesDeleted);
 
     }
 
     private boolean checkCompaction(LinkedList<SSTableImpl> tier, int level) {
-        long size = 0;
-        for (SSTableImpl ssTable : tier) {
-            size += ssTable.getSize();
-        }
-        return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);
+//        long size = 0;
+//        for (SSTableImpl ssTable : tier) {
+//            size += ssTable.getSize();
+//        }
+//        return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);
+        return tier.size() == 2;
     }
 
     private boolean deleteSsTableFiles(String fileName) {
