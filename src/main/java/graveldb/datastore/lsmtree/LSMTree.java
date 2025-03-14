@@ -297,7 +297,7 @@ public class LSMTree implements KeyValueStore {
         }
     }
 
-    private void startCompaction(LinkedList<SSTableImpl> tier, int level) throws IOException {
+    private void startCompaction(LinkedList<SSTableImpl> tier, int level) throws Exception {
 
         LinkedList<SSTableImpl.SSTableIterator> ssTablesItr = new LinkedList<>();
         for (SSTableImpl ssTable : tier) ssTablesItr.add(ssTable.iterator());
@@ -325,7 +325,8 @@ public class LSMTree implements KeyValueStore {
 
         while (true) {
             KeyValuePair curSmallest = null;
-            Set<Integer> idxToIncr = new HashSet<>();
+            Integer curSmalestIdx = null;
+            Set<Integer> curSmallestEq = new HashSet<>();
 
             if (curItrVals.isEmpty()) for (int i=0; i<ssTablesItr.size(); i++) curItrVals.addLast(null);
 
@@ -333,10 +334,13 @@ public class LSMTree implements KeyValueStore {
             for (int i=ssTablesItr.size()-1; i>=0; i--) {
                 if (curItrVals.get(i) == null) {
                     if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
-                } else continue;
+                    else continue;
+                }
 
                 if (curSmallest == null) {
                     curSmallest = curItrVals.get(i);
+                    curSmalestIdx = i;
+                    curSmallestEq.add(i);
                     continue;
                 }
 
@@ -344,13 +348,15 @@ public class LSMTree implements KeyValueStore {
 
                 if (cmp < 0) {
                     curSmallest = curItrVals.get(i);
-                    idxToIncr.add(i);
+                    curSmalestIdx = i;
+                    curSmallestEq = new HashSet<>();
+                    curSmallestEq.add(i);
                 } else if (cmp == 0) {
-                    idxToIncr.add(i);
+                    curSmallestEq.add(i);
                 }
             }
 
-            if (curSmallest == null || idxToIncr.isEmpty()) {
+            if (curSmalestIdx == null) {
                 break;
             }
 
@@ -364,12 +370,18 @@ public class LSMTree implements KeyValueStore {
                 offset += curSmallest.value().getBytes().length;
             }
 
-            for (int i : idxToIncr) {
+            for (int i : curSmallestEq) {
                 if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
+                else curItrVals.set(i, null);
             }
-
-            idxToIncr = new HashSet<>();
         }
+
+        for (SSTableImpl.SSTableIterator itr : ssTablesItr) {
+            itr.close();
+        }
+        ssTableWriter.close();
+        bloomFilterWriter.close();
+        sparseIndexWriter.close();
 
         if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addLast(ssTableNew);
         else tieredSSTables.get(level+1).addLast(ssTableNew);
@@ -388,12 +400,12 @@ public class LSMTree implements KeyValueStore {
     }
 
     private boolean checkCompaction(LinkedList<SSTableImpl> tier, int level) {
-//        long size = 0;
-//        for (SSTableImpl ssTable : tier) {
-//            size += ssTable.getSize();
-//        }
-//        return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);
-        return tier.size() == 2;
+        long size = 0;
+        for (SSTableImpl ssTable : tier) {
+            size += ssTable.getSize();
+        }
+        return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);
+//        return tier.size() == 2;
     }
 
     private boolean deleteSsTableFiles(String fileName) {
