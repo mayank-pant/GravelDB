@@ -405,7 +405,6 @@ public class LSMTree implements KeyValueStore {
             size += ssTable.getSize();
         }
         return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);
-//        return tier.size() == 2;
     }
 
     private boolean deleteSsTableFiles(String fileName) {
