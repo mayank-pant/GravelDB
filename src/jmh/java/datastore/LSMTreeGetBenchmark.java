@@ -4,6 +4,7 @@ import graveldb.datastore.lsmtree.LSMTree;
 import graveldb.wal.WalRecovery;
 import graveldb.wal.WriteAheadLog;
 import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +17,9 @@ import java.util.concurrent.TimeUnit;
 
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-public class LSMTreeAddBenchmark {
+public class LSMTreeGetBenchmark {
 
-    private static final Logger log = LoggerFactory.getLogger(LSMTreeAddBenchmark.class);
+    private static final Logger log = LoggerFactory.getLogger(LSMTreeGetBenchmark.class);
 
     LSMTree tree;
     String[] keys;
@@ -34,6 +35,11 @@ public class LSMTreeAddBenchmark {
         keys = genItems();
         shuffleKeys();
 
+        for (String ele : keys) {
+            tree.put(ele, ele);
+        }
+
+        shuffleKeys();
     }
 
     private String[] genItems() {
@@ -78,8 +84,8 @@ public class LSMTreeAddBenchmark {
     }
 
     @Benchmark
-    public void add() throws IOException {
-        tree.put(keys[index], keys[index]);
+    public void get(Blackhole bh) throws IOException {
+        bh.consume(tree.get(keys[index]));
         index = (index + 1) % NUM_ITEMS;
     }
 }

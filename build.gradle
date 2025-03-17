@@ -42,11 +42,11 @@ jmh {
     fork = 1
     warmupIterations = 3
     iterations = 5
-    benchmarkMode = ['thrpt','avg']
+    benchmarkMode = ['thrpt','avgt', 'sample']
     jmhTimeout = '15s'
     jmhVersion = '1.37'
     resultFormat = 'JSON'
-    jvmArgs = ['-XX:StartFlightRecording=filename=./jmh.jfr,duration=30s']
+    // jvmArgs = ['-XX:StartFlightRecording=filename=./jmh.jfr,duration=30s']
     //profilers = ['gc', 'xperf']
 }
 

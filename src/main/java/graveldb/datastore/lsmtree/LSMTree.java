@@ -118,6 +118,8 @@ public class LSMTree implements KeyValueStore {
             );
             SSTableImpl ssTable = new SSTableImpl(ssTableFileName);
 
+            // TODO: maintain metadata file to keep track of sstable tier and use this information to build
+            //       back the tier on application startup
             currentSize += ssTable.getSize();
             if (currentSize > TIER_SIZE * Math.pow(TIER_MULTIPLE, level)) level ++;
             if (level == TIER_COUNT) tieredSSTables.get(TIER_COUNT-1).add(ssTable);
@@ -129,26 +131,18 @@ public class LSMTree implements KeyValueStore {
 
     @Override
     public void put(String key, String value) throws IOException {
-        synchronized (mutWalObject) {
-            mutWal.append("SET", key, value);
-        }
-
         synchronized (memTableObject) {
+            mutWal.append("SET", key, value);
             mutMemtable.put(key, value);
-        }
 
-        if (mutMemtable.canFlush()) {
             synchronized (immMemtables) {
-                immMemtables.addFirst(mutMemtable);
-            }
-
-            synchronized (memTableObject) {
-                mutMemtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
-                mutMemtable = new ConcurrentSkipListMemtable();
-                synchronized (mutWalObject) {
+                if (mutMemtable.canFlush()) {
+                    immMemtables.addFirst(mutMemtable);
+                    mutMemtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
+                    mutMemtable = new ConcurrentSkipListMemtable();
                     mutWal = new WriteAheadLog();
+                    memtableToWalfile.put(mutMemtable, mutWal);
                 }
-                memtableToWalfile.put(mutMemtable, mutWal);
             }
         }
     }
@@ -159,6 +153,14 @@ public class LSMTree implements KeyValueStore {
         synchronized (memTableObject) {
             value = mutMemtable.get(key);
         }
+
+        synchronized (immMemtables) {
+            for (Memtable table : immMemtables) {
+                value = table.get(key);
+                if (value != null) break;
+            }
+        }
+
         if (value == null) return getFromSstable(key);
         else if (value.isEmpty()) return null;
         else return value;
@@ -173,17 +175,19 @@ public class LSMTree implements KeyValueStore {
     public void flushMemtable() {
         try {
 
-            Memtable toBeFlushedMemtable = immMemtables.peekLast();
-
-            if (toBeFlushedMemtable == null) return;
+            Memtable toBeFlushedMemtable = null;
+            Iterator<KeyValuePair> memtableIterator =  null;
+            synchronized (immMemtables) {
+                toBeFlushedMemtable = immMemtables.peekLast();
+                if (toBeFlushedMemtable == null) return;
+                memtableIterator = toBeFlushedMemtable.iterator();
+            }
 
             String fileIdentifier = String.valueOf(sstableCount.incrementAndGet());
             String newSsTableDir = DATA_DIR + SSTABLE_DIR.replace("{file_no}", fileIdentifier);
             String ssTableFilePath = newSsTableDir + fileIdentifier + SSTABLE_FILE_POSTFIX;
             String sparseIndexFilePath = newSsTableDir + fileIdentifier + SPARSE_INDEX_FILE_POSTFIX;
             String bloomFilterFilePath = newSsTableDir + fileIdentifier + BLOOM_FILTER_FILE_POSTFIX;
-
-            Iterator<KeyValuePair> memtableIterator = toBeFlushedMemtable.iterator();
 
             SSTableImpl ssTable = new SSTableImpl(ssTableFilePath);
             SSTableImpl.SSTableWriter ssTableWriter = ssTable.getWriter();
@@ -210,13 +214,11 @@ public class LSMTree implements KeyValueStore {
             }
 
             synchronized (immMemtables) {
-                immMemtables.pollLast();
-            }
-
-            ssTableToBloomAndSparse.put(ssTable, new Pair<>(bloomFilter, sparseIndex));
-
-            synchronized (tieredSSTables) {
-                 tieredSSTables.getFirst().add(ssTable);
+                synchronized (tieredSSTables) {
+                    tieredSSTables.getFirst().add(ssTable);
+                    ssTableToBloomAndSparse.put(ssTable, new Pair<>(bloomFilter, sparseIndex));
+                    immMemtables.pollLast();
+                }
             }
 
             memtableToWalfile.get(toBeFlushedMemtable).delete();
@@ -238,10 +240,8 @@ public class LSMTree implements KeyValueStore {
                         sparseTable = pair.ele2().getSparseIndexTable();
                     } catch (IOException e) {
                         log.error("error reading sstable");
-                        throw new RuntimeException("erro reading sstablee");
+                        throw new RuntimeException("error reading sstable");
                     }
-
-                    log.info(sparseTable.toString());
 
                     int offset = -1;
                     int l = 0, r = sparseTable.size()-1;

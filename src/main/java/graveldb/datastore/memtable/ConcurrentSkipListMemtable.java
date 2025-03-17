@@ -14,14 +14,12 @@ public class ConcurrentSkipListMemtable implements Memtable {
     private MemtableStatus memtableStatus;
     private int size;
     private final static int FLUSH_THRESHOLD = 1024 * 4 ;
-    private final String walFile;
 
 
     public ConcurrentSkipListMemtable() {
         this.concurrentMap = new ConcurrentSkipListMap<>();
         this.memtableStatus = MemtableStatus.ACTIVE;
         this.size = 0;
-        this.walFile = String.valueOf(UUID.randomUUID());
     }
 
     @Override
