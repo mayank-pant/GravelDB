@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -23,8 +24,10 @@ public class LSMTreeGetBenchmark {
 
     LSMTree tree;
     String[] keys;
-    static int index = 0;
-    static final int NUM_ITEMS = 100;
+    int index = 0;
+    static final int NUM_ITEMS = 100000;
+    List<Integer> notMatched = new ArrayList<>();
+    List<Integer> matched = new ArrayList<>();
 
     @Setup(Level.Iteration)
     public void setup() throws IOException {
@@ -35,11 +38,12 @@ public class LSMTreeGetBenchmark {
         keys = genItems();
         shuffleKeys();
 
-        for (String ele : keys) {
-            tree.put(ele, ele);
-        }
+        for (String ele : keys) tree.put(ele, ele);
 
         shuffleKeys();
+
+        notMatched.add(0);
+        matched.add(0);
     }
 
     private String[] genItems() {
@@ -50,8 +54,26 @@ public class LSMTreeGetBenchmark {
         return generatedKeys;
     }
 
+    private void shuffleKeys() {
+        List<String> shuffled = Arrays.asList(keys.clone()); // Clone to avoid modifying original array
+        Collections.shuffle(shuffled);
+        keys = shuffled.toArray(new String[0]);
+    }
+
+    @Benchmark
+    public void get(Blackhole bh) throws IOException {
+        String value = tree.get(keys[index]);
+        int currentItrCount = notMatched.size();
+        if (value == null || !value.equals(keys[index])) notMatched.set(currentItrCount-1, notMatched.get(currentItrCount-1)+1);
+        else matched.set(currentItrCount-1, matched.get(currentItrCount-1)+1);
+        bh.consume(value);
+        index = (index + 1) % NUM_ITEMS;
+    }
+
     @TearDown(Level.Iteration)
     public void teardown() throws IOException {
+        log.info("keys not matched - {}", notMatched);
+        log.info("keys matched - {}", matched);
         log.info("started teardown of the LSM tree");
 
         try {
@@ -75,17 +97,5 @@ public class LSMTreeGetBenchmark {
             }
         }
         return directoryToBeDeleted.delete();
-    }
-
-    private void shuffleKeys() {
-        List<String> shuffled = Arrays.asList(keys.clone()); // Clone to avoid modifying original array
-        Collections.shuffle(shuffled);
-        keys = shuffled.toArray(new String[0]);
-    }
-
-    @Benchmark
-    public void get(Blackhole bh) throws IOException {
-        bh.consume(tree.get(keys[index]));
-        index = (index + 1) % NUM_ITEMS;
     }
 }

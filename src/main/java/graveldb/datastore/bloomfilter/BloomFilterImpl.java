@@ -77,7 +77,6 @@ public class BloomFilterImpl {
             bos.write(bitArray.toByteArray());
             bos.flush();
             bos.close();
-            log.debug("persisted bloom filter file {}",fileName);
         }
     }
 

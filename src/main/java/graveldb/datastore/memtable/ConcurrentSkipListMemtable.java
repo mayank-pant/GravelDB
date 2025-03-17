@@ -13,7 +13,7 @@ public class ConcurrentSkipListMemtable implements Memtable {
     private final ConcurrentMap<String, String> concurrentMap;
     private MemtableStatus memtableStatus;
     private int size;
-    private final static int FLUSH_THRESHOLD = 1024 * 4 ;
+    private final static int FLUSH_THRESHOLD = 1024 ;
 
 
     public ConcurrentSkipListMemtable() {

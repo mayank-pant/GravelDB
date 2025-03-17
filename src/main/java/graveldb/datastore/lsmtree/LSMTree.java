@@ -50,7 +50,7 @@ public class LSMTree implements KeyValueStore {
 
     private static final int TIER_COUNT = 4;
     private static final int TIER_SIZE = 5000;
-    private static final int TIER_MULTIPLE = 4;
+    private static final int TIER_MULTIPLE = 2;
 
     private final LinkedList<LinkedList<SSTableImpl>> tieredSSTables;
 
@@ -177,6 +177,7 @@ public class LSMTree implements KeyValueStore {
 
             Memtable toBeFlushedMemtable = null;
             Iterator<KeyValuePair> memtableIterator =  null;
+
             synchronized (immMemtables) {
                 toBeFlushedMemtable = immMemtables.peekLast();
                 if (toBeFlushedMemtable == null) return;
@@ -365,9 +366,8 @@ public class LSMTree implements KeyValueStore {
                 ssTableWriter.write(curSmallest);
                 bloomFilterWriter.write(curSmallest.key());
                 curKeyCount++;
-                offset += 8;
-                offset += curSmallest.key().getBytes().length;
-                offset += curSmallest.value().getBytes().length;
+                offset += 4 + curSmallest.key().getBytes().length;
+                offset += 4 + curSmallest.value().getBytes().length;
             }
 
             for (int i : curSmallestEq) {
@@ -395,7 +395,7 @@ public class LSMTree implements KeyValueStore {
 
         tier.clear();
 
-        log.info("stables after compaction deleted status {}", filesDeleted);
+        // log.info("stables after compaction deleted status {}", filesDeleted);
 
     }
 
