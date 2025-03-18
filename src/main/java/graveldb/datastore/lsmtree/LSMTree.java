@@ -3,7 +3,6 @@ package graveldb.datastore.lsmtree;
 import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.memtable.ConcurrentSkipListMemtable;
 import graveldb.datastore.memtable.Memtable;
-import graveldb.datastore.memtable.MemtableStatus;
 import graveldb.datastore.sstable.SSTable;
 import graveldb.datastore.sstable.SSTableImpl;
 import graveldb.datastore.bloomfilter.BloomFilterImpl;
@@ -43,7 +42,6 @@ public class LSMTree implements KeyValueStore {
     private final ConcurrentHashMap<SSTable, Pair<BloomFilterImpl, SparseIndexImpl>> ssTableToBloomAndSparse;
 
     private static final Object memTableObject = new Object();
-    private static final Object mutWalObject = new Object();
 
     ScheduledExecutorService memtableFlusher;
     ScheduledExecutorService tableCompactor;
@@ -135,14 +133,13 @@ public class LSMTree implements KeyValueStore {
             mutWal.append("SET", key, value);
             mutMemtable.put(key, value);
 
+            if (!mutMemtable.canFlush()) return;
+
             synchronized (immMemtables) {
-                if (mutMemtable.canFlush()) {
-                    immMemtables.addFirst(mutMemtable);
-                    mutMemtable.updateMemtableStatus(MemtableStatus.TO_BE_FLUSHED);
-                    mutMemtable = new ConcurrentSkipListMemtable();
-                    mutWal = new WriteAheadLog();
-                    memtableToWalfile.put(mutMemtable, mutWal);
-                }
+                immMemtables.addFirst(mutMemtable);
+                mutMemtable = new ConcurrentSkipListMemtable();
+                mutWal = new WriteAheadLog();
+                memtableToWalfile.put(mutMemtable, mutWal);
             }
         }
     }
@@ -150,19 +147,30 @@ public class LSMTree implements KeyValueStore {
     @Override
     public String get(String key) throws IOException {
         String value = null;
+
         synchronized (memTableObject) {
             value = mutMemtable.get(key);
+            if (value != null) {
+                if (value.isEmpty()) return null;
+                else return value;
+            }
         }
 
         synchronized (immMemtables) {
             for (Memtable table : immMemtables) {
                 value = table.get(key);
-                if (value != null) break;
+                if (value != null) {
+                    if (value.isEmpty()) return null;
+                    else return value;
+                }
             }
         }
 
-        if (value == null) return getFromSstable(key);
-        else if (value.isEmpty()) return null;
+        synchronized (tieredSSTables) {
+            value = getFromSstable(key);
+        }
+
+        if (value == null || value.isEmpty()) return null;
         else return value;
     }
 
@@ -214,13 +222,13 @@ public class LSMTree implements KeyValueStore {
                 }
             }
 
-            // i can have imm.poll last in its seperate block
+            synchronized (tieredSSTables) {
+                tieredSSTables.getFirst().addFirst(ssTable);
+                ssTableToBloomAndSparse.put(ssTable, new Pair<>(bloomFilter, sparseIndex));
+            }
+
             synchronized (immMemtables) {
-                synchronized (tieredSSTables) {
-                    tieredSSTables.getFirst().add(ssTable);
-                    ssTableToBloomAndSparse.put(ssTable, new Pair<>(bloomFilter, sparseIndex));
-                    immMemtables.pollLast();
-                }
+                immMemtables.pollLast();
             }
 
             memtableToWalfile.get(toBeFlushedMemtable).delete();
@@ -231,103 +239,59 @@ public class LSMTree implements KeyValueStore {
     }
 
     public String getFromSstable(String targetKey) throws IOException {
-        synchronized (tieredSSTables) {
-            for (LinkedList<SSTableImpl> tier: tieredSSTables) {
-                for (SSTableImpl sstable : tier) {
-                    Pair<BloomFilterImpl, SparseIndexImpl> pair = ssTableToBloomAndSparse.get(sstable);
-                    if (!pair.ele1().check(targetKey)) continue;
+        for (LinkedList<SSTableImpl> tier: tieredSSTables) {
+            for (SSTableImpl sstable : tier) {
+                Pair<BloomFilterImpl, SparseIndexImpl> pair = ssTableToBloomAndSparse.get(sstable);
+                if (!pair.ele1().check(targetKey)) continue;
 
-                    List<Pair<String, Integer>> sparseTable = null;
-                    try {
-                        sparseTable = pair.ele2().getSparseIndexTable();
-                    } catch (IOException e) {
-                        log.error("error reading sstable");
-                        throw new RuntimeException("error reading sstable");
+                List<Pair<String, Integer>> sparseTable = null;
+                try {
+                    sparseTable = pair.ele2().getSparseIndexTable();
+                } catch (IOException e) {
+                    log.error("error reading sstable",e);
+                    throw new RuntimeException("error reading sstable");
+                }
+
+                int offset = -1;
+                int l = 0, r = sparseTable.size()-1;
+
+                while (l <= r) {
+                    int m = l + (r - l) / 2;
+                    Pair<String, Integer> kao = sparseTable.get(m);
+                    int cmp = kao.ele1().compareTo(targetKey);
+
+                    if (cmp == 0) {
+                        offset = kao.ele2();
+                        break;
+                    } else if (cmp < 0) {
+                        offset = kao.ele2();
+                        l = m + 1;
+                    } else {
+                        r = m - 1;
                     }
+                }
 
-                    int offset = -1;
-                    int l = 0, r = sparseTable.size()-1;
+                if (offset == -1) continue;
 
-                    while (l <= r) {
-                        int m = l + (r - l) / 2;
-                        Pair<String, Integer> kao = sparseTable.get(m);
-                        int cmp = kao.ele1().compareTo(targetKey);
+                try (SSTableImpl.SSTableIterator itr = sstable.iterator(offset)) {
+                    while (itr.hasNext()) {
+                        KeyValuePair kvp = itr.next();
+                        if (kvp.key().equals(targetKey)) {
+                            return kvp.value().isEmpty() ? null : kvp.value();
+                        }
 
-                        if (cmp == 0) {
-                            offset = kao.ele2(); // Exact match
+                        if (kvp.key().compareTo(targetKey) > 0) {
                             break;
-                        } else if (cmp < 0) {
-                            offset = kao.ele2(); // Update closest smaller key
-                            l = m + 1;
-                        } else {
-                            r = m - 1;
                         }
                     }
-
-                    if (offset == -1) continue;
-
-                    try (SSTableImpl.SSTableIterator itr = sstable.iterator(offset)) {
-                        while (itr.hasNext()) {
-                            KeyValuePair kvp = itr.next();
-                            if (kvp.key().equals(targetKey)) {
-                                return kvp.value().isEmpty() ? null : kvp.value();
-                            }
-
-                            if (kvp.key().compareTo(targetKey) > 0) {
-                                // log.debug("Passed target key {} in SSTable {}, found {}", targetKey, sstable.getFileName(), kvp.key());
-                                break;
-                            }
-                        }
-                    } catch (IOException e) {
-                        log.error("error reading file",e);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
+                } catch (IOException e) {
+                    log.error("error reading file",e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
             }
-            return null;
         }
-    }
-
-    // Add this method
-    private boolean verifyCompaction(LinkedList<SSTableImpl> sourceTier, SSTableImpl newTable) {
-        Set<String> sourceKeys = new HashSet<>();
-
-        // Collect all non-deleted keys from source tables
-        for (SSTableImpl table : sourceTier) {
-            try (SSTableImpl.SSTableIterator itr = table.iterator()) {
-                while (itr.hasNext()) {
-                    KeyValuePair kvp = itr.next();
-                    if (!kvp.isDeleted()) sourceKeys.add(kvp.key());
-                }
-            } catch (Exception e) {
-                log.error("Error reading source table during verification", e);
-                return false;
-            }
-        }
-
-        // Check if all keys exist in new table
-        Set<String> newKeys = new HashSet<>();
-        try (SSTableImpl.SSTableIterator itr = newTable.iterator()) {
-            while (itr.hasNext()) {
-                KeyValuePair kvp = itr.next();
-                if (!kvp.isDeleted()) newKeys.add(kvp.key());
-            }
-        } catch (Exception e) {
-            log.error("Error reading new table during verification", e);
-            return false;
-        }
-
-        // Check for missing keys
-        Set<String> missingKeys = new HashSet<>(sourceKeys);
-        missingKeys.removeAll(newKeys);
-
-        if (!missingKeys.isEmpty()) {
-            log.error("Keys lost during compaction: {}", missingKeys);
-            return false;
-        }
-
-        return true;
+        return null;
     }
 
     public void compaction() {
@@ -336,7 +300,9 @@ public class LSMTree implements KeyValueStore {
                 int level = TIER_COUNT-1;
                 for (Iterator<LinkedList<SSTableImpl>> it = tieredSSTables.descendingIterator(); it.hasNext(); ) {
                     LinkedList<SSTableImpl> tier = it.next();
-                    if (checkCompaction(tier, level)) startCompaction(tier, level);
+                    if (checkCompaction(tier, level)) {
+                        startCompaction(tier, level);
+                    }
                     level--;
                 }
             }
@@ -430,13 +396,13 @@ public class LSMTree implements KeyValueStore {
         bloomFilterWriter.close();
         sparseIndexWriter.close();
 
-        boolean success = verifyCompaction(tier, ssTableNew);
-        if (!success) {
-            log.error("Compaction verification failed - some keys may be missing");
-        }
+//        boolean success = verifyCompaction(tier, ssTableNew);
+//        if (!success) {
+//            log.error("compaction verification failed - some keys may be missing");
+//        }
 
-        if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addLast(ssTableNew);
-        else tieredSSTables.get(level+1).addLast(ssTableNew);
+        if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addFirst(ssTableNew);
+        else tieredSSTables.get(level+1).addFirst(ssTableNew);
 
         ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
 

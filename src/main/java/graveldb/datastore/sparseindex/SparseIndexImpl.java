@@ -20,9 +20,10 @@ public class SparseIndexImpl {
 
     public SparseIndexImpl(String fileName) throws IOException {
         this.fileName = fileName;
-        if (!Files.exists(Path.of(fileName))) {
-            Files.createDirectories(Path.of(fileName).getParent());
-            Files.createFile(Path.of(fileName));
+        Path path = Path.of(fileName);
+        if (!Files.exists(path)) {
+            Files.createDirectories(path.getParent());
+            Files.createFile(path);
         }
     }
 

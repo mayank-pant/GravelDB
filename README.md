@@ -1,7 +1,7 @@
 # GravelDB
 
 ## About:
-GravelDB is a key value, LSM based, RESP compliant, WAL enabled database written in Java. Gravel name is due to rough nature of the gravel stone as is this project. 
+GravelDB is a key value, LSM based, RESP compliant, WAL enabled database written in Java.
 
 ## Contents
 - Overview
@@ -50,7 +50,7 @@ To mitigate the false positive rate we use 7 hash functions and 1000 bit array. 
 
 ### Sparse index
 It stores the offset of key after every x count of keys.  
-The data format is ```<key length><key><offset><key length><key><offset>```.
+The data format in the file is ```<key length><key><offset><key length><key><offset>```.
 
 ### Memtable flush
 After certain threshold memtable is moved to immutable memtable list. The ```flushMemtable()``` process fetches the oldest added memtable and starts the flushing process, which involves sstable, bloom filter and sparse index creation.  
@@ -110,27 +110,25 @@ sequenceDiagram
     LSMTree-->>Client: value or null
 ```
 
+### Read and Write path
+![LSM Structure](./asset/LSM_read_write_path.png)
+
 ## Benchmark
-JMH is used for the benchmark. The benchmark is done on the AMD system with 16GB RAM. In later release i want to have it deployed on isolated cloud container to have consistent control on result.
+GET benchmark  
+PUT benchmark  
 
 ## Run
+to run ```./gradlew run```  
+to test ```./gradlew test```  
+to benchmark ```./gradlew jmh```  
 
 ## Further development
-Key improvements and ambitious addition
--[ ] Read Write lock and advanced locking primitives
--[ ] Deploy in isolated container
+-[ ] Code documentation 
+-[ ] Read and Write locking 
+-[ ] bloom filter and sstable benchmark 
+-[ ] Cloud Deployment for referential benchmark result
+-[ ] Properties file for static and constant values
+-[ ] Level tiered compaction
 -[ ] Multiple parallel compaction and flushMemtable process
--[ ] fast-util structures for performance improvements
+-[ ] Persist tier and SSTable metadata to restore the tree to its previous state after application restart
 -[ ] Skip-List from scratch
--[ ] Data versioning
--[ ] Range queries
--[ ] More datastores addition 
-
-## References
-- Database internals
-- RESP documentation
-- Youtube videos
-- compaction -  www.alibabacloud.com/blog/an-in-depth-discussion-on-the-lsm-compaction-mechanism_596780
-
-> Note - This is not all production ready. I am all ears for any changes, optimizations, overhaul the code. Especially i have faced difficulty debugging and solving the race conditions, some are still intacrt in the code. Nothing if you find any but pls fork and solve. I will build upon the foundations here. Motive is to test how far i can strecth the java language for this task. 
-> 

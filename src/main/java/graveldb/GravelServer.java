@@ -4,7 +4,6 @@ import graveldb.datastore.KeyValueStore;
 import graveldb.datastore.lsmtree.LSMTree;
 import graveldb.parser.Request;
 import graveldb.wal.WalRecovery;
-import graveldb.wal.WriteAheadLog;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -14,10 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.util.Iterator;
-import java.util.List;
 
 public class GravelServer {
     private final int port;

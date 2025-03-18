@@ -25,44 +25,42 @@ class LSMTreeTest {
 
     private static final Logger log = LoggerFactory.getLogger(LSMTreeTest.class);
 
-//    @BeforeAll
-//    static void setup() throws IOException {
-//        Random random = new Random(42);
-//        numbers = new ArrayList<>();
-//        for (int i = start; i < end; i++) {
-//            int randomNumber = random.nextInt(end);
-//            numbers.add(randomNumber);
-//        }
-//        lsmTree = new LSMTree();
-//    }
-
     @BeforeAll
     static void setup() throws IOException {
+        Random random = new Random(42);
         numbers = new ArrayList<>();
         for (int i = start; i < end; i++) {
-            numbers.add(i);
+            int randomNumber = random.nextInt(end);
+            numbers.add(randomNumber);
         }
         lsmTree = new LSMTree();
     }
 
+//    @BeforeAll
+//    static void setup() throws IOException {
+//        numbers = new ArrayList<>();
+//        for (int i = start; i < end; i++) {
+//            numbers.add(i);
+//        }
+//        lsmTree = new LSMTree();
+//    }
+
     @Test
     @Order(1)
     void test_dbPut() throws IOException, InterruptedException {
-        // Collections.shuffle(numbers);
+        Collections.shuffle(numbers);
 
         for (Integer ele : numbers) {
             String sele = String.valueOf(ele);
             assertDoesNotThrow(() -> lsmTree.put(sele,sele));
         }
 
-        Thread.sleep(5000);
-
     }
 
     @Test
     @Order(2)
     void test_dbGet() throws IOException {
-        //Collections.shuffle(numbers);
+        Collections.shuffle(numbers);
 
         for (Integer ele : numbers) {
             count++;
@@ -91,6 +89,8 @@ class LSMTreeTest {
 
     @AfterAll
     static void tearDown() {
+        log.info("total current count of keys {}", count);
+
         try {
             lsmTree.stop();
             Thread.sleep(5000);
@@ -98,10 +98,10 @@ class LSMTreeTest {
             log.info("exception while stopping the tree");
         }
 
-//        boolean result1 = deleteDirectory(new File("./waldata"));
-//        boolean result2 = deleteDirectory(new File("./dbdata"));
-//
-//        if (!(result1 && result2)) throw new RuntimeException("db files are not deleted");
+        boolean result1 = deleteDirectory(new File("./waldata"));
+        boolean result2 = deleteDirectory(new File("./dbdata"));
+
+        if (!(result1 && result2)) throw new RuntimeException("db files are not deleted");
     }
 
     static boolean deleteDirectory(File directoryToBeDeleted) {
