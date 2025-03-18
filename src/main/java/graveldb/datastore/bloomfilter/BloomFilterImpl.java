@@ -15,7 +15,7 @@ public class BloomFilterImpl {
     private static final Logger log = LoggerFactory.getLogger(BloomFilterImpl.class);
 
     private static final int HASH_FUNCTIONS = 7;
-    private static final int BLOOM_BUCKET = 10000;
+    private static final int BLOOM_BUCKET = 500000;
     private BitSet bitArray;
 
     private final String fileName;

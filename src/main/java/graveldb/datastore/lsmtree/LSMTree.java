@@ -122,7 +122,7 @@ public class LSMTree implements KeyValueStore {
             //       back the tier on application startup
             currentSize += ssTable.getSize();
             if (currentSize > TIER_SIZE * Math.pow(TIER_MULTIPLE, level)) level ++;
-            if (level == TIER_COUNT) tieredSSTables.get(TIER_COUNT-1).add(ssTable);
+            if (level >= TIER_COUNT) tieredSSTables.get(TIER_COUNT-1).add(ssTable);
             else tieredSSTables.get(level).add(ssTable);
 
             ssTableToBloomAndSparse.put(ssTable,bloomAndSparse);
@@ -214,6 +214,7 @@ public class LSMTree implements KeyValueStore {
                 }
             }
 
+            // i can have imm.poll last in its seperate block
             synchronized (immMemtables) {
                 synchronized (tieredSSTables) {
                     tieredSSTables.getFirst().add(ssTable);
@@ -271,6 +272,11 @@ public class LSMTree implements KeyValueStore {
                             if (kvp.key().equals(targetKey)) {
                                 return kvp.value().isEmpty() ? null : kvp.value();
                             }
+
+                            if (kvp.key().compareTo(targetKey) > 0) {
+                                // log.debug("Passed target key {} in SSTable {}, found {}", targetKey, sstable.getFileName(), kvp.key());
+                                break;
+                            }
                         }
                     } catch (IOException e) {
                         log.error("error reading file",e);
@@ -281,6 +287,47 @@ public class LSMTree implements KeyValueStore {
             }
             return null;
         }
+    }
+
+    // Add this method
+    private boolean verifyCompaction(LinkedList<SSTableImpl> sourceTier, SSTableImpl newTable) {
+        Set<String> sourceKeys = new HashSet<>();
+
+        // Collect all non-deleted keys from source tables
+        for (SSTableImpl table : sourceTier) {
+            try (SSTableImpl.SSTableIterator itr = table.iterator()) {
+                while (itr.hasNext()) {
+                    KeyValuePair kvp = itr.next();
+                    if (!kvp.isDeleted()) sourceKeys.add(kvp.key());
+                }
+            } catch (Exception e) {
+                log.error("Error reading source table during verification", e);
+                return false;
+            }
+        }
+
+        // Check if all keys exist in new table
+        Set<String> newKeys = new HashSet<>();
+        try (SSTableImpl.SSTableIterator itr = newTable.iterator()) {
+            while (itr.hasNext()) {
+                KeyValuePair kvp = itr.next();
+                if (!kvp.isDeleted()) newKeys.add(kvp.key());
+            }
+        } catch (Exception e) {
+            log.error("Error reading new table during verification", e);
+            return false;
+        }
+
+        // Check for missing keys
+        Set<String> missingKeys = new HashSet<>(sourceKeys);
+        missingKeys.removeAll(newKeys);
+
+        if (!missingKeys.isEmpty()) {
+            log.error("Keys lost during compaction: {}", missingKeys);
+            return false;
+        }
+
+        return true;
     }
 
     public void compaction() {
@@ -383,8 +430,14 @@ public class LSMTree implements KeyValueStore {
         bloomFilterWriter.close();
         sparseIndexWriter.close();
 
+        boolean success = verifyCompaction(tier, ssTableNew);
+        if (!success) {
+            log.error("Compaction verification failed - some keys may be missing");
+        }
+
         if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addLast(ssTableNew);
         else tieredSSTables.get(level+1).addLast(ssTableNew);
+
         ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
 
         boolean filesDeleted = true;

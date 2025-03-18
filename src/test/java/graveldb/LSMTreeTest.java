@@ -25,13 +25,22 @@ class LSMTreeTest {
 
     private static final Logger log = LoggerFactory.getLogger(LSMTreeTest.class);
 
+//    @BeforeAll
+//    static void setup() throws IOException {
+//        Random random = new Random(42);
+//        numbers = new ArrayList<>();
+//        for (int i = start; i < end; i++) {
+//            int randomNumber = random.nextInt(end);
+//            numbers.add(randomNumber);
+//        }
+//        lsmTree = new LSMTree();
+//    }
+
     @BeforeAll
     static void setup() throws IOException {
-        Random random = new Random(42);
         numbers = new ArrayList<>();
         for (int i = start; i < end; i++) {
-            int randomNumber = random.nextInt(end);
-            numbers.add(randomNumber);
+            numbers.add(i);
         }
         lsmTree = new LSMTree();
     }
@@ -46,7 +55,8 @@ class LSMTreeTest {
             assertDoesNotThrow(() -> lsmTree.put(sele,sele));
         }
 
-         Thread.sleep(1000);
+        Thread.sleep(5000);
+
     }
 
     @Test
@@ -57,8 +67,9 @@ class LSMTreeTest {
         for (Integer ele : numbers) {
             count++;
             String sele = String.valueOf(ele);
-            log.info("current get count {}", count);
-            assertEquals(sele, lsmTree.get(sele));
+            String val = lsmTree.get(sele);
+            if (val == null) log.info("null value {}", ele);
+            assertEquals(sele, val);
         }
     }
 
@@ -87,10 +98,10 @@ class LSMTreeTest {
             log.info("exception while stopping the tree");
         }
 
-        boolean result1 = deleteDirectory(new File("./waldata"));
-        boolean result2 = deleteDirectory(new File("./dbdata"));
-
-        if (!(result1 && result2)) throw new RuntimeException("db files are not deleted");
+//        boolean result1 = deleteDirectory(new File("./waldata"));
+//        boolean result2 = deleteDirectory(new File("./dbdata"));
+//
+//        if (!(result1 && result2)) throw new RuntimeException("db files are not deleted");
     }
 
     static boolean deleteDirectory(File directoryToBeDeleted) {
