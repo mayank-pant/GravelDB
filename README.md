@@ -153,16 +153,16 @@ to benchmark ```./gradlew jmh```
 A Python client, ```graveldb-client.py```, is included in the package. Alternatively, you can use ```redis-cli```, ensuring that GravelDB is running in place of the Redis server.
 
 ## Further development
--[ ] Read Write locks and fine-grained locking
--[ ] Dynamically determine the optimal level size and Bloom filter configuration based on the workload  
--[ ] Cloud Deployment for consistent and correct benchmark result 
--[ ] More benchmarking
--[ ] Primitives data types for performance
--[ ] Properties file for static and constant values
--[ ] Level tiered compaction
--[ ] Multiple parallel compaction and flushMemtable process
--[ ] Persist tier and SSTable metadata to restore the tree to its previous state after application restart
--[ ] Skip-List from scratch
+- [ ] Read Write locks and fine-grained locking  
+- [ ] Dynamically determine the optimal level size and Bloom filter configuration based on the workload  
+- [ ] Cloud Deployment for consistent and correct benchmark result  
+- [ ] More benchmarking metrics   
+- [ ] Primitives data types    
+- [ ] Properties file for static and constant values  
+- [ ] Level tiered compaction  
+- [ ] Multiple parallel compaction and flushMemtable process  
+- [ ] Persist tier and SSTable metadata to restore the tree to its previous state after application restart  
+- [ ] Skip-List from scratch  
 
 ## References
 - Database internals, Chapter 7
