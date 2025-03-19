@@ -1,8 +1,8 @@
 # Changelog
 
-## [0.0.6] - 2025-03-
+## [0.0.7] - 2025-03-19
 ### Changed
-- Changed bloom filter configuration, bloom bucket is 5000000
+- Changed bloom filter configuration, 5000000 bit array
 - using 10 tier of sstables list
 ### Added
 - readme
