@@ -9,6 +9,6 @@ public class Main {
 
     public static void main(String[] args) {
         try {new GravelServer(6371).start();}
-        catch (Exception e) {logger.error("Some error during db start {}",e.getMessage(), e);}
+        catch (Exception e) {logger.error("error during db start {}",e.getMessage(), e);}
     }
 }

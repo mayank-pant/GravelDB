@@ -18,14 +18,18 @@ public class WalRecovery implements Iterable<Request> {
 
     private final LinkedList<WriteAheadLog> walFiles;
 
-    public WalRecovery() throws IOException {
+    public WalRecovery() {
         this.walFiles = new LinkedList<>();
         getWalFiles();
     }
 
-    private void getWalFiles() throws IOException {
+    private void getWalFiles() {
 
-        Files.createDirectories(Paths.get(WAL_DIR));
+        try {
+            Files.createDirectories(Paths.get(WAL_DIR));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         File directory = new File(WAL_DIR);
         File[] files = directory.listFiles();
@@ -45,7 +49,7 @@ public class WalRecovery implements Iterable<Request> {
         return new WalFilesIterator();
     }
 
-    public void deleteFiles() throws IOException {
+    public void deleteFiles() {
         boolean skipFirst = true;
         for (Iterator<WriteAheadLog> it = walFiles.descendingIterator(); it.hasNext(); ) {
             if (skipFirst) {

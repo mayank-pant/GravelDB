@@ -20,47 +20,62 @@ public class WriteAheadLog implements Iterable<Request> {
 
     private final Path walFile;
 
-    public WriteAheadLog() throws IOException {
+    public WriteAheadLog() {
         this.walFile = Paths.get(WAL_DIR + UUID.randomUUID() + FILE_POSTFIX);
-        Files.createDirectories(walFile.getParent());
-        if (!Files.exists(walFile)) Files.createFile(walFile);
+        try {
+            Files.createDirectories(walFile.getParent());
+            if (!Files.exists(walFile)) Files.createFile(walFile);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public WriteAheadLog(String fileName) {
         this.walFile = Paths.get(fileName);
     }
 
-    public synchronized void append(String operation, String key, String value) throws IOException {
+    public synchronized void append(String operation, String key, String value) {
         try (FileWriter writer = new FileWriter(walFile.toFile(), true)) {
             String entry = operation + " " + key + (value != null ? " " + value : "") + "\n";
             writer.write(entry);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public synchronized void clear() throws IOException {
-        Files.write(walFile, new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
+    public synchronized void clear() {
+        try {
+            Files.write(walFile, new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public synchronized void delete() throws IOException {
-        Files.delete(walFile);
+    public synchronized void delete() {
+        try {
+            Files.delete(walFile);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     @Override
     public Iterator<Request> iterator() {
-        try {
-            return new WALIterator();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new WALIterator();
     }
 
     public class WALIterator implements Iterator<Request> {
 
         Iterator<String> iterator;
 
-        public WALIterator() throws IOException {
-            List<String> data = Files.readAllLines(walFile);
-            iterator = data.iterator();
+        public WALIterator() {
+            try {
+                List<String> data = Files.readAllLines(walFile);
+                iterator = data.iterator();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override

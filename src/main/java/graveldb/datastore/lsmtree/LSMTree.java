@@ -1,12 +1,11 @@
 package graveldb.datastore.lsmtree;
 
 import graveldb.datastore.KeyValueStore;
+import graveldb.datastore.bloomfilter.BloomFilter;
 import graveldb.datastore.memtable.ConcurrentSkipListMemtable;
 import graveldb.datastore.memtable.Memtable;
+import graveldb.datastore.sparseindex.SparseIndex;
 import graveldb.datastore.sstable.SSTable;
-import graveldb.datastore.sstable.SSTableImpl;
-import graveldb.datastore.bloomfilter.BloomFilterImpl;
-import graveldb.datastore.sparseindex.SparseIndexImpl;
 import graveldb.util.Pair;
 import graveldb.wal.WriteAheadLog;
 import org.slf4j.Logger;
@@ -39,20 +38,20 @@ public class LSMTree implements KeyValueStore {
     private final LinkedList<Memtable> immMemtables;
     private WriteAheadLog mutWal;
     private final ConcurrentHashMap<Memtable, WriteAheadLog> memtableToWalfile;
-    private final ConcurrentHashMap<SSTable, Pair<BloomFilterImpl, SparseIndexImpl>> ssTableToBloomAndSparse;
+    private final ConcurrentHashMap<SSTable, Pair<BloomFilter, SparseIndex>> ssTableToBloomAndSparse;
 
     private static final Object memTableObject = new Object();
 
     ScheduledExecutorService memtableFlusher;
     ScheduledExecutorService tableCompactor;
 
-    private static final int TIER_COUNT = 4;
+    private static final int TIER_COUNT = 10;
     private static final int TIER_SIZE = 5000;
     private static final int TIER_MULTIPLE = 2;
 
-    private final LinkedList<LinkedList<SSTableImpl>> tieredSSTables;
+    private final LinkedList<LinkedList<SSTable>> tieredSSTables;
 
-    public LSMTree() throws IOException {
+    public LSMTree() {
         this.mutMemtable = new ConcurrentSkipListMemtable();
         this.immMemtables = new LinkedList<>();
         this.tieredSSTables = new LinkedList<>(); for (int i=0; i<TIER_COUNT; i++) tieredSSTables.add(new LinkedList<>());
@@ -71,9 +70,13 @@ public class LSMTree implements KeyValueStore {
         tableCompactor.scheduleAtFixedRate(this::compaction, 200, 200, TimeUnit.MILLISECONDS);
     }
 
-    private void fillSstableList() throws IOException {
+    private void fillSstableList() {
 
-        Files.createDirectories(Paths.get(DATA_DIR));
+        try {
+            Files.createDirectories(Paths.get(DATA_DIR));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         File directory = new File(DATA_DIR);
         File[] ssTableDirs = directory.listFiles();
@@ -84,12 +87,6 @@ public class LSMTree implements KeyValueStore {
         log.info("{} sstables found in the directory", ssTableDirs.length);
 
         Arrays.sort(ssTableDirs, Comparator.comparingLong(File::lastModified));
-
-        log.info(ssTableDirs[0].getName());
-        log.info(ssTableDirs[0].getPath());
-        log.info(ssTableDirs[0].getAbsolutePath());
-        log.info(ssTableDirs[0].getParent());
-        log.info(ssTableDirs[0].getCanonicalPath());
 
         String[] toGetMaxSsTableCount = ssTableDirs[0].getName().split("_");
         sstableCount = new AtomicInteger(Integer.parseInt(toGetMaxSsTableCount[toGetMaxSsTableCount.length-1]));
@@ -110,11 +107,11 @@ public class LSMTree implements KeyValueStore {
             String sparseIndexFileName = Arrays.stream(ssTableFiles)
                     .filter(file -> file.getName().contains(SPARSE_INDEX_FILE_POSTFIX)).findAny()
                     .orElseThrow(() -> new RuntimeException("sparse index not found")).getAbsolutePath();
-            Pair<BloomFilterImpl, SparseIndexImpl> bloomAndSparse = new Pair<>(
-                    new BloomFilterImpl(bloomFilterFileName),
-                    new SparseIndexImpl(sparseIndexFileName)
+            Pair<BloomFilter, SparseIndex> bloomAndSparse = new Pair<>(
+                    new BloomFilter(bloomFilterFileName),
+                    new SparseIndex(sparseIndexFileName)
             );
-            SSTableImpl ssTable = new SSTableImpl(ssTableFileName);
+            SSTable ssTable = new SSTable(ssTableFileName);
 
             // TODO: maintain metadata file to keep track of sstable tier and use this information to build
             //       back the tier on application startup
@@ -128,7 +125,7 @@ public class LSMTree implements KeyValueStore {
     }
 
     @Override
-    public void put(String key, String value) throws IOException {
+    public void put(String key, String value) {
         synchronized (memTableObject) {
             mutWal.append("SET", key, value);
             mutMemtable.put(key, value);
@@ -145,7 +142,7 @@ public class LSMTree implements KeyValueStore {
     }
 
     @Override
-    public String get(String key) throws IOException {
+    public String get(String key) {
         String value = null;
 
         synchronized (memTableObject) {
@@ -175,7 +172,7 @@ public class LSMTree implements KeyValueStore {
     }
 
     @Override
-    public void delete(String key) throws IOException {
+    public void delete(String key) {
         mutWal.append("DEL", key, null);
         mutMemtable.put(key, "");
     }
@@ -198,14 +195,14 @@ public class LSMTree implements KeyValueStore {
             String sparseIndexFilePath = newSsTableDir + fileIdentifier + SPARSE_INDEX_FILE_POSTFIX;
             String bloomFilterFilePath = newSsTableDir + fileIdentifier + BLOOM_FILTER_FILE_POSTFIX;
 
-            SSTableImpl ssTable = new SSTableImpl(ssTableFilePath);
-            SSTableImpl.SSTableWriter ssTableWriter = ssTable.getWriter();
+            SSTable ssTable = new SSTable(ssTableFilePath);
+            SSTable.SSTableWriter ssTableWriter = ssTable.getWriter();
 
-            SparseIndexImpl sparseIndex = new SparseIndexImpl(sparseIndexFilePath);
-            SparseIndexImpl.SparseIndexWriter sparseIndexWriter = sparseIndex.getWriter();
+            SparseIndex sparseIndex = new SparseIndex(sparseIndexFilePath);
+            SparseIndex.SparseIndexWriter sparseIndexWriter = sparseIndex.getWriter();
 
-            BloomFilterImpl bloomFilter = new BloomFilterImpl(bloomFilterFilePath);
-            BloomFilterImpl.BloomFilterWriter bloomFilterWriter = bloomFilter.getWriter();
+            BloomFilter bloomFilter = new BloomFilter(bloomFilterFilePath);
+            BloomFilter.BloomFilterWriter bloomFilterWriter = bloomFilter.getWriter();
 
             int curKeyCount = 0;
             int offset = 0;
@@ -233,27 +230,25 @@ public class LSMTree implements KeyValueStore {
 
             memtableToWalfile.get(toBeFlushedMemtable).delete();
 
+            log.info("memtable flushed, new SSTable is {}", ssTable.getFileName());
+
         } catch (Exception e) {
-            log.error("error while flushing memtable to sstable", e);
+            log.error("error flushing memtable to sstable", e);
         }
     }
 
-    public String getFromSstable(String targetKey) throws IOException {
-        for (LinkedList<SSTableImpl> tier: tieredSSTables) {
-            for (SSTableImpl sstable : tier) {
-                Pair<BloomFilterImpl, SparseIndexImpl> pair = ssTableToBloomAndSparse.get(sstable);
+    public String getFromSstable(String targetKey) {
+        for (LinkedList<SSTable> tier: tieredSSTables) {
+            for (SSTable sstable : tier) {
+                Pair<BloomFilter, SparseIndex> pair = ssTableToBloomAndSparse.get(sstable);
                 if (!pair.ele1().check(targetKey)) continue;
 
                 List<Pair<String, Integer>> sparseTable = null;
-                try {
-                    sparseTable = pair.ele2().getSparseIndexTable();
-                } catch (IOException e) {
-                    log.error("error reading sstable",e);
-                    throw new RuntimeException("error reading sstable");
-                }
+                sparseTable = pair.ele2().getSparseIndexTable();
 
                 int offset = -1;
-                int l = 0, r = sparseTable.size()-1;
+                int l = 0;
+                int r = sparseTable.size()-1;
 
                 while (l <= r) {
                     int m = l + (r - l) / 2;
@@ -273,7 +268,7 @@ public class LSMTree implements KeyValueStore {
 
                 if (offset == -1) continue;
 
-                try (SSTableImpl.SSTableIterator itr = sstable.iterator(offset)) {
+                try (SSTable.SSTableIterator itr = sstable.iterator(offset)) {
                     while (itr.hasNext()) {
                         KeyValuePair kvp = itr.next();
                         if (kvp.key().equals(targetKey)) {
@@ -284,8 +279,6 @@ public class LSMTree implements KeyValueStore {
                             break;
                         }
                     }
-                } catch (IOException e) {
-                    log.error("error reading file",e);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -298,8 +291,8 @@ public class LSMTree implements KeyValueStore {
         try {
             synchronized (tieredSSTables) {
                 int level = TIER_COUNT-1;
-                for (Iterator<LinkedList<SSTableImpl>> it = tieredSSTables.descendingIterator(); it.hasNext(); ) {
-                    LinkedList<SSTableImpl> tier = it.next();
+                for (Iterator<LinkedList<SSTable>> it = tieredSSTables.descendingIterator(); it.hasNext(); ) {
+                    LinkedList<SSTable> tier = it.next();
                     if (checkCompaction(tier, level)) {
                         startCompaction(tier, level);
                     }
@@ -307,120 +300,120 @@ public class LSMTree implements KeyValueStore {
                 }
             }
         } catch (Exception e) {
-            log.error("error while compaction",e);
+            throw new RuntimeException(e);
         }
     }
 
-    private void startCompaction(LinkedList<SSTableImpl> tier, int level) throws Exception {
+    private void startCompaction(LinkedList<SSTable> tier, int level) {
+        try {
 
-        LinkedList<SSTableImpl.SSTableIterator> ssTablesItr = new LinkedList<>();
-        for (SSTableImpl ssTable : tier) ssTablesItr.add(ssTable.iterator());
+            LinkedList<SSTable.SSTableIterator> ssTablesItr = new LinkedList<>();
+            for (SSTable ssTable : tier) ssTablesItr.add(ssTable.iterator());
 
-        String fileIdentifier = String.valueOf(sstableCount.incrementAndGet());
-        String newSsTableDir = DATA_DIR + SSTABLE_DIR.replace("{file_no}", fileIdentifier);
-        String ssTableFilePath = newSsTableDir + fileIdentifier + SSTABLE_FILE_POSTFIX;
-        String sparseIndexFilePath = newSsTableDir + fileIdentifier + SPARSE_INDEX_FILE_POSTFIX;
-        String bloomFilterFilePath = newSsTableDir + fileIdentifier + BLOOM_FILTER_FILE_POSTFIX;
+            String fileIdentifier = String.valueOf(sstableCount.incrementAndGet());
+            String newSsTableDir = DATA_DIR + SSTABLE_DIR.replace("{file_no}", fileIdentifier);
+            String ssTableFilePath = newSsTableDir + fileIdentifier + SSTABLE_FILE_POSTFIX;
+            String sparseIndexFilePath = newSsTableDir + fileIdentifier + SPARSE_INDEX_FILE_POSTFIX;
+            String bloomFilterFilePath = newSsTableDir + fileIdentifier + BLOOM_FILTER_FILE_POSTFIX;
 
-        // create new sstable, bloom filter, sparse index
-        SSTableImpl ssTableNew = new SSTableImpl(ssTableFilePath);
-        BloomFilterImpl bloomFilterNew = new BloomFilterImpl(bloomFilterFilePath);
-        SparseIndexImpl sparseIndexNew = new SparseIndexImpl(sparseIndexFilePath);
+            // create new sstable, bloom filter, sparse index
+            SSTable ssTableNew = new SSTable(ssTableFilePath);
+            BloomFilter bloomFilterNew = new BloomFilter(bloomFilterFilePath);
+            SparseIndex sparseIndexNew = new SparseIndex(sparseIndexFilePath);
 
-        // get sstable bloom filter, sparse index writer
-        SSTableImpl.SSTableWriter ssTableWriter = ssTableNew.getWriter();
-        BloomFilterImpl.BloomFilterWriter bloomFilterWriter = bloomFilterNew.getWriter();
-        SparseIndexImpl.SparseIndexWriter sparseIndexWriter = sparseIndexNew.getWriter();
+            // get sstable bloom filter, sparse index writer
+            SSTable.SSTableWriter ssTableWriter = ssTableNew.getWriter();
+            BloomFilter.BloomFilterWriter bloomFilterWriter = bloomFilterNew.getWriter();
+            SparseIndex.SparseIndexWriter sparseIndexWriter = sparseIndexNew.getWriter();
 
-        int curKeyCount = 0;
-        int offset = 0;
+            int curKeyCount = 0;
+            int offset = 0;
 
-        List<KeyValuePair> curItrVals = new LinkedList<>();
+            List<KeyValuePair> curItrVals = new LinkedList<>();
 
-        while (true) {
-            KeyValuePair curSmallest = null;
-            Integer curSmalestIdx = null;
-            Set<Integer> curSmallestEq = new HashSet<>();
+            while (true) {
+                KeyValuePair curSmallest = null;
+                Integer curSmalestIdx = null;
+                Set<Integer> curSmallestEq = new HashSet<>();
 
-            if (curItrVals.isEmpty()) for (int i=0; i<ssTablesItr.size(); i++) curItrVals.addLast(null);
+                if (curItrVals.isEmpty()) for (int i = 0; i < ssTablesItr.size(); i++) curItrVals.addLast(null);
 
-            // sorted run over the file keys
-            for (int i=ssTablesItr.size()-1; i>=0; i--) {
-                if (curItrVals.get(i) == null) {
-                    if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
-                    else continue;
+                // sorted run over the file keys
+                for (int i = ssTablesItr.size() - 1; i >= 0; i--) {
+                    if (curItrVals.get(i) == null) {
+                        if (ssTablesItr.get(i).hasNext()) curItrVals.set(i, ssTablesItr.get(i).next());
+                        else continue;
+                    }
+
+                    if (curSmallest == null) {
+                        curSmallest = curItrVals.get(i);
+                        curSmalestIdx = i;
+                        curSmallestEq.add(i);
+                        continue;
+                    }
+
+                    int cmp = curItrVals.get(i).key().compareTo(curSmallest.key());
+
+                    if (cmp < 0) {
+                        curSmallest = curItrVals.get(i);
+                        curSmalestIdx = i;
+                        curSmallestEq = new HashSet<>();
+                        curSmallestEq.add(i);
+                    } else if (cmp == 0) {
+                        curSmallestEq.add(i);
+                    }
                 }
 
-                if (curSmallest == null) {
-                    curSmallest = curItrVals.get(i);
-                    curSmalestIdx = i;
-                    curSmallestEq.add(i);
-                    continue;
+                if (curSmalestIdx == null) {
+                    break;
                 }
 
-                int cmp = curItrVals.get(i).key().compareTo(curSmallest.key());
+                if (!curSmallest.isDeleted()) {
+                    if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(curSmallest.key(), offset);
+                    ssTableWriter.write(curSmallest);
+                    bloomFilterWriter.write(curSmallest.key());
+                    curKeyCount++;
+                    offset += 4 + curSmallest.key().getBytes().length;
+                    offset += 4 + curSmallest.value().getBytes().length;
+                }
 
-                if (cmp < 0) {
-                    curSmallest = curItrVals.get(i);
-                    curSmalestIdx = i;
-                    curSmallestEq = new HashSet<>();
-                    curSmallestEq.add(i);
-                } else if (cmp == 0) {
-                    curSmallestEq.add(i);
+                for (int i : curSmallestEq) {
+                    if (ssTablesItr.get(i).hasNext()) curItrVals.set(i, ssTablesItr.get(i).next());
+                    else curItrVals.set(i, null);
                 }
             }
 
-            if (curSmalestIdx == null) {
-                break;
+            for (SSTable.SSTableIterator itr : ssTablesItr) {
+                itr.close();
+            }
+            ssTableWriter.close();
+            bloomFilterWriter.close();
+            sparseIndexWriter.close();
+
+            if (level == TIER_COUNT - 1) tieredSSTables.get(TIER_COUNT - 1).addFirst(ssTableNew);
+            else tieredSSTables.get(level + 1).addFirst(ssTableNew);
+
+            ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
+
+            boolean filesDeleted = true;
+            for (SSTable ssTable : tier) {
+                ssTableToBloomAndSparse.remove(ssTable);
+                filesDeleted &= deleteSsTableFiles(ssTable.getFileName());
             }
 
-            if (!curSmallest.isDeleted()) {
-                if (curKeyCount % KEY_COUNT_FOR_SPARSE_INDEX == 0 || curKeyCount == 0) sparseIndexWriter.write(curSmallest.key(), offset);
-                ssTableWriter.write(curSmallest);
-                bloomFilterWriter.write(curSmallest.key());
-                curKeyCount++;
-                offset += 4 + curSmallest.key().getBytes().length;
-                offset += 4 + curSmallest.value().getBytes().length;
-            }
+            tier.clear();
 
-            for (int i : curSmallestEq) {
-                if (ssTablesItr.get(i).hasNext()) curItrVals.set(i,ssTablesItr.get(i).next());
-                else curItrVals.set(i, null);
-            }
+            log.info("tier {} compacted, new sstable is {}", level, ssTableNew.getFileName());
+        } catch (Exception e) {
+            log.error("error during compaction", e);
+            throw new RuntimeException(e);
         }
-
-        for (SSTableImpl.SSTableIterator itr : ssTablesItr) {
-            itr.close();
-        }
-        ssTableWriter.close();
-        bloomFilterWriter.close();
-        sparseIndexWriter.close();
-
-//        boolean success = verifyCompaction(tier, ssTableNew);
-//        if (!success) {
-//            log.error("compaction verification failed - some keys may be missing");
-//        }
-
-        if (level == TIER_COUNT-1) tieredSSTables.get(TIER_COUNT-1).addFirst(ssTableNew);
-        else tieredSSTables.get(level+1).addFirst(ssTableNew);
-
-        ssTableToBloomAndSparse.put(ssTableNew, new Pair<>(bloomFilterNew, sparseIndexNew));
-
-        boolean filesDeleted = true;
-        for (SSTableImpl ssTable : tier) {
-            ssTableToBloomAndSparse.remove(ssTable);
-            filesDeleted &= deleteSsTableFiles(ssTable.getFileName());
-        }
-
-        tier.clear();
-
-        // log.info("stables after compaction deleted status {}", filesDeleted);
 
     }
 
-    private boolean checkCompaction(LinkedList<SSTableImpl> tier, int level) {
+    private boolean checkCompaction(LinkedList<SSTable> tier, int level) {
         long size = 0;
-        for (SSTableImpl ssTable : tier) {
+        for (SSTable ssTable : tier) {
             size += ssTable.getSize();
         }
         return size > TIER_SIZE * Math.pow(TIER_MULTIPLE, level);

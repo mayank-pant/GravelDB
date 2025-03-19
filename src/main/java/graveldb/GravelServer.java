@@ -12,19 +12,17 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-
 public class GravelServer {
     private final int port;
     private final KeyValueStore store;
     private static final Logger logger = LoggerFactory.getLogger(GravelServer.class);
 
-    public GravelServer(int port) throws IOException {
+    public GravelServer(int port) {
         this.port = port;
         this.store = new LSMTree();
     }
 
-    public void start() throws InterruptedException {
+    public void start() {
         final EventLoopGroup bossGroup = new NioEventLoopGroup();
         final EventLoopGroup workerGroup = new NioEventLoopGroup();
 
@@ -43,7 +41,7 @@ public class GravelServer {
                 recover();
             } catch (Exception e) {
                 logger.error("WAL Recovery Failed.",e);
-                throw new InterruptedException("WAL Recovery Failed.");
+                throw new RuntimeException("WAL Recovery Failed.");
             }
 
             ChannelFuture future = bootstrap.bind(port).sync();
@@ -60,7 +58,7 @@ public class GravelServer {
         }
     }
 
-    private void recover() throws IOException {
+    private void recover() {
         WalRecovery walRecovery = new WalRecovery();
         for (Request request : walRecovery) {
             switch (request.command()) {

@@ -25,12 +25,12 @@ public class LSMTreeGetBenchmark {
     LSMTree tree;
     String[] keys;
     int index = 0;
-    static final int NUM_ITEMS = 100000;
+    static final int NUM_ITEMS = 1000000;
     List<Integer> notMatched = new ArrayList<>();
     List<Integer> matched = new ArrayList<>();
 
     @Setup(Level.Iteration)
-    public void setup() throws IOException {
+    public void setup() {
         log.info("setting up LSM tree for each benchmark iteration");
         index = 0;
         tree = new LSMTree();
@@ -61,7 +61,7 @@ public class LSMTreeGetBenchmark {
     }
 
     @Benchmark
-    public void get(Blackhole bh) throws IOException {
+    public void get(Blackhole bh) {
         String value = tree.get(keys[index]);
         int currentItrCount = notMatched.size();
         if (value == null || !value.equals(keys[index])) notMatched.set(currentItrCount-1, notMatched.get(currentItrCount-1)+1);
@@ -71,7 +71,7 @@ public class LSMTreeGetBenchmark {
     }
 
     @TearDown(Level.Iteration)
-    public void teardown() throws IOException {
+    public void teardown() {
         log.info("keys not matched - {}", notMatched);
         log.info("keys matched - {}", matched);
         log.info("started teardown of the LSM tree");

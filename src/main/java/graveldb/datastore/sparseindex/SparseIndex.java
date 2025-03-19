@@ -10,32 +10,35 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
-public class SparseIndexImpl {
+public class SparseIndex {
 
-    private static final Logger log = LoggerFactory.getLogger(SparseIndexImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(SparseIndex.class);
 
     private final String fileName;
     List<Pair<String, Integer>> sparseTable = null;
 
 
-    public SparseIndexImpl(String fileName) throws IOException {
+    public SparseIndex(String fileName) {
         this.fileName = fileName;
         Path path = Path.of(fileName);
         if (!Files.exists(path)) {
-            Files.createDirectories(path.getParent());
-            Files.createFile(path);
+            try {
+                Files.createDirectories(path.getParent());
+                Files.createFile(path);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
-    public SparseIndexWriter getWriter() throws FileNotFoundException { return new SparseIndexWriter(); }
+    public SparseIndexWriter getWriter() { return new SparseIndexWriter(); }
 
-    public List<Pair<String, Integer>> getSparseIndexTable() throws IOException {
+    public List<Pair<String, Integer>> getSparseIndexTable() {
         if (sparseTable != null) return sparseTable;
 
         this.sparseTable = new ArrayList<>();
 
-        RandomAccessFile fis = new RandomAccessFile(fileName, "r");
-        try (fis) {
+        try (RandomAccessFile fis = new RandomAccessFile(fileName, "r");) {
             while (fis.getFilePointer() < fis.length()) {
                 byte[] keyLenByte = new byte[4];
                 fis.read(keyLenByte);
@@ -48,7 +51,7 @@ public class SparseIndexImpl {
             }
             return sparseTable;
         } catch (IOException e) {
-            throw new RuntimeException("error reading sparse table");
+            throw new RuntimeException(e);
         }
     }
 
@@ -56,14 +59,22 @@ public class SparseIndexImpl {
 
         BufferedOutputStream bos;
 
-        public SparseIndexWriter() throws FileNotFoundException {
-            bos = new BufferedOutputStream(new FileOutputStream(fileName));
+        public SparseIndexWriter() {
+            try {
+                bos = new BufferedOutputStream(new FileOutputStream(fileName));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        public void write(String key, int offset) throws IOException {
-            bos.write(intToByteArray(key.getBytes().length));
-            bos.write(key.getBytes());
-            bos.write(intToByteArray(offset));
+        public void write(String key, int offset) {
+            try {
+                bos.write(intToByteArray(key.getBytes().length));
+                bos.write(key.getBytes());
+                bos.write(intToByteArray(offset));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override

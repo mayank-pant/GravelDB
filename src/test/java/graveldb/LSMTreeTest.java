@@ -25,30 +25,30 @@ class LSMTreeTest {
 
     private static final Logger log = LoggerFactory.getLogger(LSMTreeTest.class);
 
-    @BeforeAll
-    static void setup() throws IOException {
-        Random random = new Random(42);
-        numbers = new ArrayList<>();
-        for (int i = start; i < end; i++) {
-            int randomNumber = random.nextInt(end);
-            numbers.add(randomNumber);
-        }
-        lsmTree = new LSMTree();
-    }
-
 //    @BeforeAll
-//    static void setup() throws IOException {
+//    static void setup() {
+//        Random random = new Random(42);
 //        numbers = new ArrayList<>();
 //        for (int i = start; i < end; i++) {
-//            numbers.add(i);
+//            int randomNumber = random.nextInt(end);
+//            numbers.add(randomNumber);
 //        }
 //        lsmTree = new LSMTree();
 //    }
 
+    @BeforeAll
+    static void setup() {
+        numbers = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            numbers.add(i);
+        }
+        lsmTree = new LSMTree();
+    }
+
     @Test
     @Order(1)
-    void test_dbPut() throws IOException, InterruptedException {
-        Collections.shuffle(numbers);
+    void test_dbPut() {
+        // Collections.shuffle(numbers);
 
         for (Integer ele : numbers) {
             String sele = String.valueOf(ele);
@@ -59,8 +59,8 @@ class LSMTreeTest {
 
     @Test
     @Order(2)
-    void test_dbGet() throws IOException {
-        Collections.shuffle(numbers);
+    void test_dbGet() {
+        // Collections.shuffle(numbers);
 
         for (Integer ele : numbers) {
             count++;
@@ -73,7 +73,7 @@ class LSMTreeTest {
 
     @Test
     @Order(3)
-    void test_dbNotPresent() throws IOException {
+    void test_dbNotPresent() {
         List<String> notPresentElements = new ArrayList<>();
         for (int i=end+1; i<=end+1000; i++) notPresentElements.add(String.valueOf(i));
         for (String ele : notPresentElements) {

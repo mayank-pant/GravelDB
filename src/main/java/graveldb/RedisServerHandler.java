@@ -65,7 +65,7 @@ public class RedisServerHandler extends SimpleChannelInboundHandler<ByteBuf> {
                     yield ":OK\r\n";
                 }
             };
-        } catch (IOException e) {
+        } catch (Exception e) {
             return "-ERR Failed to process command\r\n";
         }
     }

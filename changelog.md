@@ -1,6 +1,23 @@
 # Changelog
 
-## [0.0.5] - 2025-02-14 - *Major release*
+## [0.0.6] - 2025-03-
+### Changed
+- Changed bloom filter configuration, bloom bucket is 5000000
+- using 10 tier of sstables list
+### Added
+- readme
+
+## [0.0.6] - 2025-03-14
+### Changed
+- fixed bug, few keys were returning null values
+- renamed the SSTable and BLoomFilter implementation classes and removed there interfaces
+- adding sstable to the first index in sstable instead of last,
+- removed redundant memtable status
+- throwing RuntimeException incase there is any exception
+### Added
+- get and add benchmark
+
+## [0.0.5] - 2025-02-14
 ### Changed
 - size tiered compaction
 - added getSize method in SSTable
@@ -8,7 +25,7 @@
 ### Added
 - tree get and put test case
 
-## [0.0.4] - 2025-02-13 - *Major release*
+## [0.0.4] - 2025-02-13
 ### Changed
 - File structure change, each sstable will have there separate folder with bloom, sparse file
 - Project structure changed
