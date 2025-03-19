@@ -155,14 +155,14 @@ A Python client, ```graveldb-client.py```, is included in the package. Alternati
 ## Further development
 - [ ] Read Write locks and fine-grained locking  
 - [ ] Dynamically determine the optimal level size and Bloom filter configuration based on the workload  
-- [ ] Cloud Deployment for consistent and correct benchmark result  
+- [ ] On cloud execution for consistent and correct benchmark result  
 - [ ] More benchmarking metrics   
 - [ ] Primitives data types    
 - [ ] Properties file for static and constant values  
 - [ ] Level tiered compaction  
 - [ ] Multiple parallel compaction and flushMemtable process  
 - [ ] Persist tier and SSTable metadata to restore the tree to its previous state after application restart  
-- [ ] Skip-List from scratch  
+- [ ] More datastores
 
 ## References
 - Database internals, Chapter 7
